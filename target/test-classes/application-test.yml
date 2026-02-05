@@ -1,0 +1,11 @@
+# Profile: test
+# Shared test overrides (e.g. for integration profile).
+spring:
+  jpa:
+    show-sql: true
+
+jwt:
+  public:
+    key: classpath:certs/public.pem
+  private:
+    key: classpath:certs/private.pem

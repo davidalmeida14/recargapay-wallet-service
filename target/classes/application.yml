@@ -1,0 +1,55 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: wallet-platform
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/wallet}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    # --------------------------------------------------
+    hikari:
+      # Configurações específicas do Pool ficam aqui
+      connection-timeout: 20000
+  devtools:
+    restart:
+      enabled: true
+  jpa:
+    open-in-view: false
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          batch_size: 200
+    database: postgresql
+
+management:
+  endpoints:
+    enabled-by-default: false
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+      enabled: true
+  health:
+    defaults:
+      enabled: false
+    ping:
+      enabled: true
+
+jwt:
+  public:
+    key: ${JWT_PUBLIC_KEY:classpath:certs/public.pem}
+  private:
+    key: ${JWT_PRIVATE_KEY:classpath:certs/private.pem}

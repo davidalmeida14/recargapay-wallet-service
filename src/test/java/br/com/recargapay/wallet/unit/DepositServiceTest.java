@@ -1,0 +1,112 @@
+package br.com.recargapay.wallet.unit;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+import java.math.BigDecimal;
+import java.util.Optional;
+import java.util.UUID;
+
+import java.util.function.Consumer;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
+import br.com.recargapay.wallet.domain.transaction.repository.TransactionRepository;
+import br.com.recargapay.wallet.domain.wallet.exception.WalletNotFoundException;
+import br.com.recargapay.wallet.domain.wallet.model.Wallet;
+import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
+import br.com.recargapay.wallet.domain.wallet.service.DepositService;
+import br.com.recargapay.wallet.support.UnitTest;
+
+class DepositServiceTest extends UnitTest {
+
+  @Mock private WalletRepository walletRepository;
+  @Mock private TransactionRepository transactionRepository;
+  @Mock private EntryRepository entryRepository;
+  @Mock private TransactionTemplate transactionTemplate;
+
+  @InjectMocks private DepositService depositService;
+
+  @BeforeEach
+  void setup() {
+    // Use doAnswer for execute as it receives a TransactionCallback and returns a value
+    lenient().doAnswer(
+            invocation -> {
+              TransactionCallback callback = invocation.getArgument(0);
+              return callback.doInTransaction(null);
+            })
+        .when(transactionTemplate)
+        .execute(any());
+  }
+
+  @Test
+  @DisplayName("Should deposit successfully")
+  void depositSuccessfully() {
+    UUID walletId = UUID.randomUUID();
+    BigDecimal amount = new BigDecimal("100.00");
+    String idempotencyId = "idem-123";
+    Wallet wallet = new Wallet(UUID.randomUUID(), "BRL");
+
+    when(transactionRepository.findByWalletIdAndIdempotencyIdAndType(any(), any(), any()))
+        .thenReturn(Optional.empty());
+    when(walletRepository.loadByIdForUpdate(walletId)).thenReturn(Optional.of(wallet));
+
+    var result = depositService.deposit(walletId, amount, idempotencyId);
+
+    assertEquals(new BigDecimal("100.00"), wallet.getBalance());
+    verify(walletRepository).add(wallet);
+    verify(transactionRepository).create(any(br.com.recargapay.wallet.domain.transaction.model.Transaction.class));
+    verify(entryRepository).create(any(br.com.recargapay.wallet.domain.transaction.model.Entry.class));
+    verify(transactionRepository).update(any());
+  }
+
+  @Test
+  @DisplayName("Should skip deposit if idempotency key exists")
+  void skipIfIdempotencyExists() {
+    UUID walletId = UUID.randomUUID();
+    String idempotencyId = "idem-123";
+
+    when(transactionRepository.findByWalletIdAndIdempotencyIdAndType(any(), any(), any()))
+        .thenReturn(Optional.of(mock(br.com.recargapay.wallet.domain.transaction.model.Transaction.class)));
+
+    depositService.deposit(walletId, BigDecimal.TEN, idempotencyId);
+
+    verify(walletRepository, never()).loadByIdForUpdate(any());
+    verify(walletRepository, never()).add(any());
+  }
+
+  @Test
+  @DisplayName("Should throw exception if amount is zero or negative")
+  void throwExceptionIfAmountInvalid() {
+    UUID walletId = UUID.randomUUID();
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> depositService.deposit(walletId, BigDecimal.ZERO, "idem"));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> depositService.deposit(walletId, new BigDecimal("-1"), "idem"));
+  }
+
+  @Test
+  @DisplayName("Should throw WalletNotFoundException if wallet does not exist")
+  void throwWalletNotFound() {
+    UUID walletId = UUID.randomUUID();
+    when(transactionRepository.findByWalletIdAndIdempotencyIdAndType(any(), any(), any()))
+        .thenReturn(Optional.empty());
+    when(walletRepository.loadByIdForUpdate(walletId)).thenReturn(Optional.empty());
+
+    assertThrows(
+        WalletNotFoundException.class,
+        () -> depositService.deposit(walletId, BigDecimal.TEN, "idem"));
+  }
+}
