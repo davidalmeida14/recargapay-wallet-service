@@ -2,7 +2,7 @@
 # Shared test overrides (e.g. for integration profile).
 spring:
   jpa:
-    show-sql: true
+    show-sql: false
 
 jwt:
   public:

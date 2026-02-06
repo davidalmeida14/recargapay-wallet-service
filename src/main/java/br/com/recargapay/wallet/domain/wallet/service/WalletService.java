@@ -5,68 +5,67 @@ import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
 import br.com.recargapay.wallet.domain.wallet.exception.WalletNotFoundException;
 import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
-import java.math.BigDecimal;
-import java.time.OffsetDateTime;
-import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
 @Service
 public class WalletService {
-  private final WalletRepository walletRepository;
-  private final EntryRepository entryRepository;
-  private final TransactionTemplate transactionTemplate;
+    private final WalletRepository walletRepository;
+    private final EntryRepository entryRepository;
+    private final TransactionTemplate transactionTemplate;
 
-  public WalletService(WalletRepository walletRepository, EntryRepository entryRepository, TransactionTemplate transactionTemplate) {
-    this.walletRepository = walletRepository;
-    this.entryRepository = entryRepository;
-    this.transactionTemplate = transactionTemplate;
-  }
-
-  public Wallet createWallet(UUID customerId, String currency) {
-    var wallets = walletRepository.listByCustomerIdAndCurrency(customerId, currency);
-    if (!wallets.isEmpty()) {
-      return wallets.getFirst();
+    public WalletService(WalletRepository walletRepository, EntryRepository entryRepository, TransactionTemplate transactionTemplate) {
+        this.walletRepository = walletRepository;
+        this.entryRepository = entryRepository;
+        this.transactionTemplate = transactionTemplate;
     }
 
-    var wallet = new Wallet(customerId, currency);
+    public Wallet createWallet(UUID customerId, String currency) {
+        var wallets = walletRepository.listByCustomerIdAndCurrency(customerId, currency);
+        if (!wallets.isEmpty()) {
+            return wallets.getFirst();
+        }
 
-    transactionTemplate.executeWithoutResult(
-        status -> {
-          walletRepository.add(wallet);
-        });
+        var wallet = new Wallet(customerId, currency);
 
-    return wallet;
-  }
+        transactionTemplate.executeWithoutResult(
+                status -> {
+                    walletRepository.add(wallet);
+                });
 
-  public BigDecimal retrieveBalance(UUID walletId) {
-    return walletRepository
-        .loadByIdForUpdate(walletId)
-        .map(Wallet::getBalance)
-        .orElseThrow(() -> new WalletNotFoundException(walletId));
-  }
-
-  public BigDecimal retrieveHistoricalBalance(UUID walletId, OffsetDateTime at) {
-    if (!walletRepository.findById(walletId).isPresent()) {
-      throw new WalletNotFoundException(walletId);
+        return wallet;
     }
-    var entries = entryRepository.findByWalletIdAndCreatedAtBeforeOrderByCreatedAtAsc(walletId, at);
-    return entries.stream()
-        .map(
-            e ->
-                e.getFinancialType() == FinancialType.CREDIT
-                    ? e.getAmount()
-                    : e.getAmount().negate())
-        .reduce(BigDecimal.ZERO, BigDecimal::add);
-  }
 
-  public Wallet retrieveDefaultWallet(UUID customerId) {
-    var wallets = walletRepository.findByCustomerId(customerId);
-    if (wallets.isEmpty()) {
-      return createWallet(customerId, "BRL");
+    public BigDecimal retrieveBalance(UUID walletId) {
+        return walletRepository
+                .loadByIdForUpdate(walletId)
+                .map(Wallet::getBalance)
+                .orElseThrow(() -> new WalletNotFoundException(walletId));
     }
-    // Return first wallet for now, as we only support one for this challenge
-    return wallets.getFirst();
-  }
+
+    public BigDecimal retrieveHistoricalBalance(UUID walletId, OffsetDateTime at) {
+        if (!walletRepository.findById(walletId).isPresent()) {
+            throw new WalletNotFoundException(walletId);
+        }
+        var entries = entryRepository.findByWalletIdAndCreatedAtBeforeOrderByCreatedAtAsc(walletId, at);
+        return entries.stream()
+                .map(
+                        e ->
+                                e.getFinancialType() == FinancialType.CREDIT
+                                        ? e.getAmount()
+                                        : e.getAmount().negate())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public Wallet retrieveDefaultWallet(UUID customerId) {
+        var wallets = walletRepository.findByCustomerId(customerId);
+        if (wallets.isEmpty()) {
+            return createWallet(customerId, "BRL");
+        }
+        return wallets.getFirst();
+    }
 }
