@@ -6,6 +6,12 @@ import br.com.recargapay.wallet.application.definitions.WalletBalanceDefinition;
 import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.service.WalletService;
 import br.com.recargapay.wallet.infrastructure.security.SecurityService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.net.URI;
@@ -19,6 +25,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 @RestController
 @RequestMapping("/api/v1/wallets")
+@Tag(name = "Wallets", description = "Operations related to wallet management")
 public class WalletController {
 
   private final WalletService walletService;
@@ -29,6 +36,18 @@ public class WalletController {
     this.securityService = securityService;
   }
 
+  @Operation(
+      summary = "Create a new wallet",
+      description =
+          "Creates a new wallet for the authenticated customer with the specified currency.",
+      responses = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "Wallet created successfully",
+            content = @Content(schema = @Schema(implementation = CreateWalletResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
+      })
   @PutMapping
   public ResponseEntity<?> createWallet(@Valid @RequestBody CreateWalletRequest request) {
     UUID customerId = securityService.getAuthenticatedCustomerId();
@@ -37,9 +56,24 @@ public class WalletController {
         .body(CreateWalletResponse.toResponse(wallet));
   }
 
+  @Operation(
+      summary = "Get wallet balance",
+      description =
+          "Retrieves the current balance or the historical balance at a specific point in time for the authenticated customer's default wallet.",
+      responses = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Balance retrieved successfully",
+            content = @Content(schema = @Schema(implementation = WalletBalanceDefinition.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
+      })
   @GetMapping("/balance")
   public ResponseEntity<WalletBalanceDefinition> getBalance(
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+      @Parameter(
+              description = "Optional timestamp to retrieve historical balance (ISO 8601 format)",
+              example = "2023-10-27T10:00:00Z")
+          @RequestParam(required = false)
+          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
           OffsetDateTime at) {
     UUID customerId = securityService.getAuthenticatedCustomerId();
     Wallet wallet = walletService.retrieveDefaultWallet(customerId);
