@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,7 @@ class WalletHistoricalBalanceE2ETest extends EndToEndTest {
   @Autowired private JdbcTemplate jdbcTemplate;
   private String TOKEN = "";
 
+  @BeforeEach
   void setup() {
     var email = "historical@example.com";
     var password = "password";

@@ -1,13 +1,13 @@
 package br.com.recargapay.wallet.unit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
 import br.com.recargapay.wallet.domain.transaction.repository.TransactionRepository;
-import br.com.recargapay.wallet.domain.wallet.exception.WalletNotFoundException;
+import br.com.recargapay.wallet.domain.wallet.exception.WalletErrorCode;
 import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
 import br.com.recargapay.wallet.domain.wallet.service.DepositService;
@@ -86,27 +86,28 @@ class DepositServiceTest extends UnitTest {
   }
 
   @Test
-  @DisplayName("Should throw exception if amount is zero or negative")
+  @DisplayName("Should return error if amount is zero or negative")
   void throwExceptionIfAmountInvalid() {
     UUID walletId = UUID.randomUUID();
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> depositService.deposit(walletId, BigDecimal.ZERO, "idem"));
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> depositService.deposit(walletId, new BigDecimal("-1"), "idem"));
+    var result1 = depositService.deposit(walletId, BigDecimal.ZERO, "idem");
+    assertTrue(result1.isLeft());
+    assertEquals(WalletErrorCode.INVALID_AMOUNT.getCode(), result1.getLeft().get().code());
+
+    var result2 = depositService.deposit(walletId, new BigDecimal("-1"), "idem");
+    assertTrue(result2.isLeft());
+    assertEquals(WalletErrorCode.INVALID_AMOUNT.getCode(), result2.getLeft().get().code());
   }
 
   @Test
-  @DisplayName("Should throw WalletNotFoundException if wallet does not exist")
+  @DisplayName("Should return error if wallet does not exist")
   void throwWalletNotFound() {
     UUID walletId = UUID.randomUUID();
     when(transactionRepository.findByWalletIdAndIdempotencyIdAndType(any(), any(), any()))
         .thenReturn(Optional.empty());
     when(walletRepository.loadByIdForUpdate(walletId)).thenReturn(Optional.empty());
 
-    assertThrows(
-        WalletNotFoundException.class,
-        () -> depositService.deposit(walletId, BigDecimal.TEN, "idem"));
+    var result = depositService.deposit(walletId, BigDecimal.TEN, "idem");
+    assertTrue(result.isLeft());
+    assertEquals(WalletErrorCode.WALLET_NOT_FOUND.getCode(), result.getLeft().get().code());
   }
 }

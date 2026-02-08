@@ -57,7 +57,7 @@ public class AuthController {
         @ApiResponse(responseCode = "401", description = "Invalid credentials", content = @Content)
       })
   @PostMapping("/authentication")
-  public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
+  public ResponseEntity<LoginResponse> authenticate(@Valid @RequestBody LoginRequest loginRequest) {
     Customer customer =
         customerRepository
             .findByEmail(loginRequest.email())

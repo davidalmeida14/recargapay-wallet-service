@@ -1,14 +1,13 @@
 package br.com.recargapay.wallet.unit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
 import br.com.recargapay.wallet.domain.transaction.repository.TransactionRepository;
-import br.com.recargapay.wallet.domain.wallet.exception.InsufficientBalanceException;
-import br.com.recargapay.wallet.domain.wallet.exception.WalletNotFoundException;
+import br.com.recargapay.wallet.domain.wallet.exception.WalletErrorCode;
 import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
 import br.com.recargapay.wallet.domain.wallet.service.WithdrawService;
@@ -72,7 +71,7 @@ class WithdrawServiceTest extends UnitTest {
   }
 
   @Test
-  @DisplayName("Should throw InsufficientBalanceException if balance is not enough")
+  @DisplayName("Should return error if balance is not enough")
   void throwInsufficientBalance() {
     UUID walletId = UUID.randomUUID();
     BigDecimal amount = new BigDecimal("150.00");
@@ -83,10 +82,10 @@ class WithdrawServiceTest extends UnitTest {
         .thenReturn(Optional.empty());
     when(walletRepository.loadByIdForUpdate(walletId)).thenReturn(Optional.of(wallet));
 
-    assertThrows(
-        InsufficientBalanceException.class,
-        () -> withdrawService.withdraw(walletId, amount, "idem"));
+    var result = withdrawService.withdraw(walletId, amount, "idem");
 
+    assertTrue(result.isLeft());
+    assertEquals(WalletErrorCode.INSUFFICIENT_BALANCE.getCode(), result.getLeft().get().code());
     verify(walletRepository, never()).save(any());
   }
 
@@ -104,24 +103,24 @@ class WithdrawServiceTest extends UnitTest {
   }
 
   @Test
-  @DisplayName("Should throw exception if amount is zero or negative")
+  @DisplayName("Should return error if amount is zero or negative")
   void throwExceptionIfAmountInvalid() {
     UUID walletId = UUID.randomUUID();
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> withdrawService.withdraw(walletId, BigDecimal.ZERO, "idem"));
+    var result = withdrawService.withdraw(walletId, BigDecimal.ZERO, "idem");
+    assertTrue(result.isLeft());
+    assertEquals(WalletErrorCode.INVALID_AMOUNT.getCode(), result.getLeft().get().code());
   }
 
   @Test
-  @DisplayName("Should throw WalletNotFoundException if wallet does not exist")
+  @DisplayName("Should return error if wallet does not exist")
   void throwWalletNotFound() {
     UUID walletId = UUID.randomUUID();
     when(transactionRepository.findByWalletIdAndIdempotencyIdAndType(any(), any(), any()))
         .thenReturn(Optional.empty());
-    when(walletRepository.loadByIdForUpdate(walletId)).thenReturn(Optional.empty());
+    when(walletRepository.loadByIdForUpdate(walletId)).thenReturn(Optional.ofNullable(null));
 
-    assertThrows(
-        WalletNotFoundException.class,
-        () -> withdrawService.withdraw(walletId, BigDecimal.TEN, "idem"));
+    var result = withdrawService.withdraw(walletId, BigDecimal.TEN, "idem");
+    assertTrue(result.isLeft());
+    assertEquals(WalletErrorCode.WALLET_NOT_FOUND.getCode(), result.getLeft().get().code());
   }
 }
