@@ -5,7 +5,6 @@ import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Repository;
@@ -13,8 +12,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 interface EntryJpaRepository extends JpaRepository<Entry, UUID> {
 
-  List<Entry> findByWalletIdAndCreatedAtBeforeOrderByCreatedAtAsc(
-      UUID walletId, OffsetDateTime at);
+  List<Entry> findByWalletIdAndCreatedAtBeforeOrderByCreatedAtAsc(UUID walletId, OffsetDateTime at);
 }
 
 @Component

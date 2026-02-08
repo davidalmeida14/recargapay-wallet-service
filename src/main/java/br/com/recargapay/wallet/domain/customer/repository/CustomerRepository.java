@@ -6,6 +6,8 @@ import java.util.UUID;
 
 public interface CustomerRepository {
   Customer save(Customer customer);
+
   Optional<Customer> findById(UUID id);
+
   Optional<Customer> findByEmail(String email);
 }

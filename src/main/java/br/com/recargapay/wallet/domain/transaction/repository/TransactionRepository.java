@@ -13,4 +13,6 @@ public interface TransactionRepository {
       UUID walletId, String idempotencyId, Type type);
 
   void update(Transaction transaction);
+
+  Optional<Transaction> loadById(UUID transactionId);
 }

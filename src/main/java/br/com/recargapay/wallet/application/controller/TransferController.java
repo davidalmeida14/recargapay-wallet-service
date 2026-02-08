@@ -7,40 +7,38 @@ import br.com.recargapay.wallet.domain.wallet.service.TransferService;
 import br.com.recargapay.wallet.domain.wallet.service.WalletService;
 import br.com.recargapay.wallet.infrastructure.security.SecurityService;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("/api/v1")
-
 public class TransferController {
 
-    private final TransferService transferService;
-    private final WalletService walletService;
-    private final SecurityService securityService;
+  private final TransferService transferService;
+  private final WalletService walletService;
+  private final SecurityService securityService;
 
-    public TransferController(TransferService transferService, WalletService walletService, SecurityService securityService) {
-        this.transferService = transferService;
-        this.walletService = walletService;
-        this.securityService = securityService;
-    }
+  public TransferController(
+      TransferService transferService,
+      WalletService walletService,
+      SecurityService securityService) {
+    this.transferService = transferService;
+    this.walletService = walletService;
+    this.securityService = securityService;
+  }
 
-    @PutMapping("/transfers")
-    public ResponseEntity<Void> transfer(
-            @RequestHeader(name = Headers.X_IDEMPOTENCY_ID) String idempotencyId,
-            @Valid @RequestBody TransferRequest request) {
+  @PutMapping("/transfers")
+  public ResponseEntity<Void> transfer(
+      @RequestHeader(name = Headers.X_IDEMPOTENCY_ID) String idempotencyId,
+      @Valid @RequestBody TransferRequest request) {
 
-        UUID customerId = securityService.getAuthenticatedCustomerId();
-        Wallet originWallet = walletService.retrieveDefaultWallet(customerId);
+    UUID customerId = securityService.getAuthenticatedCustomerId();
+    Wallet originWallet = walletService.retrieveDefaultWallet(customerId);
 
-        transferService.transfer(
-                originWallet.getId(),
-                request.destinationWalletId(),
-                request.amount(),
-                idempotencyId);
+    transferService.transfer(
+        originWallet.getId(), request.destinationWalletId(), request.amount(), idempotencyId);
 
-        return ResponseEntity.ok().build();
-    }
+    return ResponseEntity.ok().build();
+  }
 }

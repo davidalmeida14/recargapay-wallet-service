@@ -1,7 +1,5 @@
 package br.com.recargapay.wallet.domain.wallet.exception;
 
-import br.com.recargapay.wallet.domain.wallet.model.Wallet;
-
 import java.util.UUID;
 
 public class WalletNotFoundException extends RuntimeException {

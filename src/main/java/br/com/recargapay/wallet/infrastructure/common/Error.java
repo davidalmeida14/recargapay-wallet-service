@@ -1,10 +1,6 @@
 package br.com.recargapay.wallet.infrastructure.common;
 
-public record Error(
-    String code,
-    String message,
-    String details
-) {
+public record Error(String code, String message, String details) {
 
   public Error(String code, String message) {
     this(code, message, null);

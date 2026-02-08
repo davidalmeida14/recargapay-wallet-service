@@ -53,3 +53,10 @@ jwt:
     key: ${JWT_PUBLIC_KEY:classpath:certs/public.pem}
   private:
     key: ${JWT_PRIVATE_KEY:classpath:certs/private.pem}
+
+aws:
+  sqs:
+    endpoint:
+      configuration: ${AWS_SQS_ENDPOINT_CONFIGURATION:http://localhost:4576}
+    queues:
+      transfers: transfer-credit-pending

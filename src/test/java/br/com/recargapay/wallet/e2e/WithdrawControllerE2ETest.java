@@ -9,13 +9,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import br.com.recargapay.wallet.application.Headers;
 import br.com.recargapay.wallet.support.EndToEndTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,9 +42,11 @@ class WithdrawControllerE2ETest extends EndToEndTest {
 
       var createBody = "{\"currency\":\"BRL\"}";
       mockMvc
-          .perform(put("/api/v1/wallets")
+          .perform(
+              put("/api/v1/wallets")
                   .header("Authorization", "Bearer " + token)
-                  .contentType(APPLICATION_JSON).content(createBody))
+                  .contentType(APPLICATION_JSON)
+                  .content(createBody))
           .andExpect(status().isCreated());
 
       mockMvc
@@ -67,8 +68,7 @@ class WithdrawControllerE2ETest extends EndToEndTest {
           .andExpect(status().isOk());
 
       mockMvc
-          .perform(get("/api/v1/wallets/balance")
-                  .header("Authorization", "Bearer " + token))
+          .perform(get("/api/v1/wallets/balance").header("Authorization", "Bearer " + token))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.balance").value(125));
     }
@@ -83,9 +83,11 @@ class WithdrawControllerE2ETest extends EndToEndTest {
 
       var createBody = "{\"currency\":\"BRL\"}";
       mockMvc
-          .perform(put("/api/v1/wallets")
+          .perform(
+              put("/api/v1/wallets")
                   .header("Authorization", "Bearer " + token)
-                  .contentType(APPLICATION_JSON).content(createBody))
+                  .contentType(APPLICATION_JSON)
+                  .content(createBody))
           .andExpect(status().isCreated());
 
       mockMvc

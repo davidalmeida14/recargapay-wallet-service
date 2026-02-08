@@ -11,7 +11,6 @@ import java.math.BigDecimal;
 import java.net.URI;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -40,7 +39,8 @@ public class WalletController {
 
   @GetMapping("/balance")
   public ResponseEntity<WalletBalanceDefinition> getBalance(
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime at) {
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+          OffsetDateTime at) {
     UUID customerId = securityService.getAuthenticatedCustomerId();
     Wallet wallet = walletService.retrieveDefaultWallet(customerId);
     BigDecimal balance =

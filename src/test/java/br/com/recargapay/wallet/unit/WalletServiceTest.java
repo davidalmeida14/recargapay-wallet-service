@@ -5,21 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import java.math.BigDecimal;
-import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.function.Consumer;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import br.com.recargapay.wallet.domain.transaction.model.Entry;
 import br.com.recargapay.wallet.domain.transaction.model.FinancialType;
 import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
@@ -28,6 +13,19 @@ import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
 import br.com.recargapay.wallet.domain.wallet.service.WalletService;
 import br.com.recargapay.wallet.support.UnitTest;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Consumer;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 class WalletServiceTest extends UnitTest {
 
@@ -39,7 +37,8 @@ class WalletServiceTest extends UnitTest {
 
   @BeforeEach
   void setup() {
-    lenient().doAnswer(
+    lenient()
+        .doAnswer(
             invocation -> {
               Consumer<TransactionStatus> callback = invocation.getArgument(0);
               callback.accept(null);
@@ -61,7 +60,7 @@ class WalletServiceTest extends UnitTest {
 
     assertEquals(customerId, wallet.getCustomerId());
     assertEquals(currency, wallet.getCurrency().name());
-    verify(walletRepository).add(any(Wallet.class));
+    verify(walletRepository).save(any(Wallet.class));
   }
 
   @Test
@@ -71,12 +70,13 @@ class WalletServiceTest extends UnitTest {
     String currency = "BRL";
     Wallet existing = new Wallet(customerId, currency);
 
-    when(walletRepository.listByCustomerIdAndCurrency(customerId, currency)).thenReturn(List.of(existing));
+    when(walletRepository.listByCustomerIdAndCurrency(customerId, currency))
+        .thenReturn(List.of(existing));
 
     Wallet wallet = walletService.createWallet(customerId, currency);
 
     assertEquals(existing, wallet);
-    verify(walletRepository, never()).add(any());
+    verify(walletRepository, never()).save(any());
   }
 
   @Test
@@ -98,15 +98,28 @@ class WalletServiceTest extends UnitTest {
   void retrieveHistoricalBalance() {
     UUID walletId = UUID.randomUUID();
     OffsetDateTime at = OffsetDateTime.now();
-    
+
     when(walletRepository.findById(walletId)).thenReturn(Optional.of(mock(Wallet.class)));
-    
-    List<Entry> entries = List.of(
-        new Entry(UUID.randomUUID(), walletId, UUID.randomUUID(), new BigDecimal("100.00"), FinancialType.CREDIT, at.minusDays(1)),
-        new Entry(UUID.randomUUID(), walletId, UUID.randomUUID(), new BigDecimal("30.00"), FinancialType.DEBIT, at.minusHours(1))
-    );
-    
-    when(entryRepository.findByWalletIdAndCreatedAtBeforeOrderByCreatedAtAsc(walletId, at)).thenReturn(entries);
+
+    List<Entry> entries =
+        List.of(
+            new Entry(
+                UUID.randomUUID(),
+                walletId,
+                UUID.randomUUID(),
+                new BigDecimal("100.00"),
+                FinancialType.CREDIT,
+                at.minusDays(1)),
+            new Entry(
+                UUID.randomUUID(),
+                walletId,
+                UUID.randomUUID(),
+                new BigDecimal("30.00"),
+                FinancialType.DEBIT,
+                at.minusHours(1)));
+
+    when(entryRepository.findByWalletIdAndCreatedAtBeforeOrderByCreatedAtAsc(walletId, at))
+        .thenReturn(entries);
 
     BigDecimal balance = walletService.retrieveHistoricalBalance(walletId, at);
 
@@ -114,7 +127,8 @@ class WalletServiceTest extends UnitTest {
   }
 
   @Test
-  @DisplayName("Should throw WalletNotFoundException when retrieving balance of non-existent wallet")
+  @DisplayName(
+      "Should throw WalletNotFoundException when retrieving balance of non-existent wallet")
   void throwNotFoundOnBalance() {
     UUID walletId = UUID.randomUUID();
     when(walletRepository.loadByIdForUpdate(walletId)).thenReturn(Optional.empty());

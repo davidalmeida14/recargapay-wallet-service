@@ -11,6 +11,5 @@ public interface EntryRepository {
 
   List<Entry> create(List<Entry> entries);
 
-  List<Entry> findByWalletIdAndCreatedAtBeforeOrderByCreatedAtAsc(
-      UUID walletId, OffsetDateTime at);
+  List<Entry> findByWalletIdAndCreatedAtBeforeOrderByCreatedAtAsc(UUID walletId, OffsetDateTime at);
 }

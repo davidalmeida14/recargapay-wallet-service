@@ -1,9 +1,6 @@
 package br.com.recargapay.wallet.infrastructure.common;
 
-public record Success<T>(
-    T data,
-    String message
-) {
+public record Success<T>(T data, String message) {
 
   public Success(T data) {
     this(data, null);

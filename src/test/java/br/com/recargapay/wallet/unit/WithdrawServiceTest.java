@@ -5,19 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import java.math.BigDecimal;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.function.Consumer;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
 import br.com.recargapay.wallet.domain.transaction.repository.TransactionRepository;
 import br.com.recargapay.wallet.domain.wallet.exception.InsufficientBalanceException;
@@ -26,6 +13,15 @@ import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
 import br.com.recargapay.wallet.domain.wallet.service.WithdrawService;
 import br.com.recargapay.wallet.support.UnitTest;
+import java.math.BigDecimal;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.springframework.transaction.support.TransactionTemplate;
 
 class WithdrawServiceTest extends UnitTest {
 
@@ -39,9 +35,11 @@ class WithdrawServiceTest extends UnitTest {
   @BeforeEach
   void setup() {
     // Use doAnswer for execute as it receives a TransactionCallback and returns a value
-    lenient().doAnswer(
+    lenient()
+        .doAnswer(
             invocation -> {
-              org.springframework.transaction.support.TransactionCallback callback = invocation.getArgument(0);
+              org.springframework.transaction.support.TransactionCallback callback =
+                  invocation.getArgument(0);
               return callback.doInTransaction(null);
             })
         .when(transactionTemplate)
@@ -64,9 +62,11 @@ class WithdrawServiceTest extends UnitTest {
     var result = withdrawService.withdraw(walletId, amount, idempotencyId);
 
     assertEquals(new BigDecimal("50.00"), wallet.getBalance());
-    verify(walletRepository).add(wallet);
-    verify(transactionRepository).create(any(br.com.recargapay.wallet.domain.transaction.model.Transaction.class));
-    verify(entryRepository).create(any(br.com.recargapay.wallet.domain.transaction.model.Entry.class));
+    verify(walletRepository).save(wallet);
+    verify(transactionRepository)
+        .create(any(br.com.recargapay.wallet.domain.transaction.model.Transaction.class));
+    verify(entryRepository)
+        .create(any(br.com.recargapay.wallet.domain.transaction.model.Entry.class));
     verify(transactionRepository).update(any());
   }
 
@@ -85,8 +85,8 @@ class WithdrawServiceTest extends UnitTest {
     assertThrows(
         InsufficientBalanceException.class,
         () -> withdrawService.withdraw(walletId, amount, "idem"));
-    
-    verify(walletRepository, never()).add(any());
+
+    verify(walletRepository, never()).save(any());
   }
 
   @Test
@@ -94,7 +94,8 @@ class WithdrawServiceTest extends UnitTest {
   void skipIfIdempotencyExists() {
     UUID walletId = UUID.randomUUID();
     when(transactionRepository.findByWalletIdAndIdempotencyIdAndType(any(), any(), any()))
-        .thenReturn(Optional.of(mock(br.com.recargapay.wallet.domain.transaction.model.Transaction.class)));
+        .thenReturn(
+            Optional.of(mock(br.com.recargapay.wallet.domain.transaction.model.Transaction.class)));
 
     withdrawService.withdraw(walletId, BigDecimal.TEN, "idem");
 

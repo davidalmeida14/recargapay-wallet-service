@@ -16,8 +16,7 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(WalletNotFoundException.class)
   public ResponseEntity<Map<String, Object>> handleWalletNotFound(WalletNotFoundException ex) {
-    var body =
-        new java.util.HashMap<String, Object>();
+    var body = new java.util.HashMap<String, Object>();
     body.put("error", ex.getClass().getSimpleName());
     body.put("message", ex.getMessage());
     if (ex.getWalletId() != null) {
@@ -40,8 +39,7 @@ public class GlobalExceptionHandler {
   }
 
   @ExceptionHandler(CurrencyMismatchException.class)
-  public ResponseEntity<Map<String, Object>> handleCurrencyMismatch(
-      CurrencyMismatchException ex) {
+  public ResponseEntity<Map<String, Object>> handleCurrencyMismatch(CurrencyMismatchException ex) {
     return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
         .body(
             Map.of(
@@ -52,8 +50,7 @@ public class GlobalExceptionHandler {
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
-  public ResponseEntity<Map<String, Object>> handleValidation(
-      MethodArgumentNotValidException ex) {
+  public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
     var errors =
         ex.getBindingResult().getFieldErrors().stream()
             .map(e -> e.getField() + ": " + e.getDefaultMessage())
@@ -67,13 +64,14 @@ public class GlobalExceptionHandler {
   }
 
   @ExceptionHandler(MissingRequestHeaderException.class)
-  public ResponseEntity<Map<String, Object>> handleMissingHeader(
-      MissingRequestHeaderException ex) {
+  public ResponseEntity<Map<String, Object>> handleMissingHeader(MissingRequestHeaderException ex) {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
         .body(
             Map.of(
-                "error", "MissingRequestHeader",
-                "message", "Required header '%s' is missing".formatted(ex.getHeaderName())));
+                "error",
+                "MissingRequestHeader",
+                "message",
+                "Required header '%s' is missing".formatted(ex.getHeaderName())));
   }
 
   @ExceptionHandler(IllegalArgumentException.class)

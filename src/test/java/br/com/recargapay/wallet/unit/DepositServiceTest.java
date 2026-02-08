@@ -5,21 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import java.math.BigDecimal;
-import java.util.Optional;
-import java.util.UUID;
-
-import java.util.function.Consumer;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.support.TransactionCallback;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
 import br.com.recargapay.wallet.domain.transaction.repository.TransactionRepository;
 import br.com.recargapay.wallet.domain.wallet.exception.WalletNotFoundException;
@@ -27,6 +12,16 @@ import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
 import br.com.recargapay.wallet.domain.wallet.service.DepositService;
 import br.com.recargapay.wallet.support.UnitTest;
+import java.math.BigDecimal;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 class DepositServiceTest extends UnitTest {
 
@@ -40,7 +35,8 @@ class DepositServiceTest extends UnitTest {
   @BeforeEach
   void setup() {
     // Use doAnswer for execute as it receives a TransactionCallback and returns a value
-    lenient().doAnswer(
+    lenient()
+        .doAnswer(
             invocation -> {
               TransactionCallback callback = invocation.getArgument(0);
               return callback.doInTransaction(null);
@@ -64,9 +60,11 @@ class DepositServiceTest extends UnitTest {
     var result = depositService.deposit(walletId, amount, idempotencyId);
 
     assertEquals(new BigDecimal("100.00"), wallet.getBalance());
-    verify(walletRepository).add(wallet);
-    verify(transactionRepository).create(any(br.com.recargapay.wallet.domain.transaction.model.Transaction.class));
-    verify(entryRepository).create(any(br.com.recargapay.wallet.domain.transaction.model.Entry.class));
+    verify(walletRepository).save(wallet);
+    verify(transactionRepository)
+        .create(any(br.com.recargapay.wallet.domain.transaction.model.Transaction.class));
+    verify(entryRepository)
+        .create(any(br.com.recargapay.wallet.domain.transaction.model.Entry.class));
     verify(transactionRepository).update(any());
   }
 
@@ -77,12 +75,13 @@ class DepositServiceTest extends UnitTest {
     String idempotencyId = "idem-123";
 
     when(transactionRepository.findByWalletIdAndIdempotencyIdAndType(any(), any(), any()))
-        .thenReturn(Optional.of(mock(br.com.recargapay.wallet.domain.transaction.model.Transaction.class)));
+        .thenReturn(
+            Optional.of(mock(br.com.recargapay.wallet.domain.transaction.model.Transaction.class)));
 
     depositService.deposit(walletId, BigDecimal.TEN, idempotencyId);
 
     verify(walletRepository, never()).loadByIdForUpdate(any());
-    verify(walletRepository, never()).add(any());
+    verify(walletRepository, never()).save(any());
   }
 
   @Test

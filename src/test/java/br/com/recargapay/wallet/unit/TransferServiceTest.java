@@ -5,19 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import java.math.BigDecimal;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.function.Consumer;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
 import br.com.recargapay.wallet.domain.transaction.repository.TransactionRepository;
 import br.com.recargapay.wallet.domain.wallet.exception.CurrencyMismatchException;
@@ -27,6 +14,17 @@ import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
 import br.com.recargapay.wallet.domain.wallet.service.TransferService;
 import br.com.recargapay.wallet.support.UnitTest;
+import java.math.BigDecimal;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Consumer;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 class TransferServiceTest extends UnitTest {
 
@@ -39,7 +37,8 @@ class TransferServiceTest extends UnitTest {
 
   @BeforeEach
   void setup() {
-    lenient().doAnswer(
+    lenient()
+        .doAnswer(
             invocation -> {
               Consumer<TransactionStatus> callback = invocation.getArgument(0);
               callback.accept(null);
@@ -70,9 +69,10 @@ class TransferServiceTest extends UnitTest {
     assertEquals(new BigDecimal("50.00"), origin.getBalance());
     assertEquals(new BigDecimal("50.00"), dest.getBalance());
 
-    verify(walletRepository).add(origin);
-    verify(walletRepository).add(dest);
-    verify(transactionRepository).create(any(br.com.recargapay.wallet.domain.transaction.model.Transaction.class));
+    verify(walletRepository).save(origin);
+    verify(walletRepository).save(dest);
+    verify(transactionRepository)
+        .create(any(br.com.recargapay.wallet.domain.transaction.model.Transaction.class));
     verify(entryRepository).create(any(java.util.List.class));
   }
 
@@ -118,7 +118,8 @@ class TransferServiceTest extends UnitTest {
   @DisplayName("Should skip transfer if idempotency key exists")
   void skipIfIdempotencyExists() {
     when(transactionRepository.findByWalletIdAndIdempotencyIdAndType(any(), any(), any()))
-        .thenReturn(Optional.of(mock(br.com.recargapay.wallet.domain.transaction.model.Transaction.class)));
+        .thenReturn(
+            Optional.of(mock(br.com.recargapay.wallet.domain.transaction.model.Transaction.class)));
 
     transferService.transfer(UUID.randomUUID(), UUID.randomUUID(), BigDecimal.TEN, "idem");
 

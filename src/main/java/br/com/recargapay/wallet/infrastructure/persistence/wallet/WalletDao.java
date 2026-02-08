@@ -1,21 +1,18 @@
 package br.com.recargapay.wallet.infrastructure.persistence.wallet;
 
+import br.com.recargapay.wallet.domain.wallet.model.Currency;
+import br.com.recargapay.wallet.domain.wallet.model.Wallet;
+import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
-
-import br.com.recargapay.wallet.domain.wallet.model.Currency;
-import br.com.recargapay.wallet.domain.wallet.model.Wallet;
-import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
-import lombok.AllArgsConstructor;
 
 @Repository
 interface WalletJpaRepository extends JpaRepository<Wallet, UUID> {
@@ -54,7 +51,7 @@ public class WalletDao implements WalletRepository {
   }
 
   @Override
-  public Wallet add(Wallet wallet) {
+  public Wallet save(Wallet wallet) {
     return walletJpaRepository.saveAndFlush(wallet);
   }
 

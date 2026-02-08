@@ -58,3 +58,5 @@ aws:
   sqs:
     endpoint:
       configuration: ${AWS_SQS_ENDPOINT_CONFIGURATION:http://localhost:4576}
+    queues:
+      transfers: transfer-credit-pending

@@ -1,11 +1,10 @@
 package br.com.recargapay.wallet.domain.wallet.repository;
 
+import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
-import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 
 public interface WalletRepository {
 
@@ -13,7 +12,7 @@ public interface WalletRepository {
 
   Optional<Wallet> findById(UUID walletId);
 
-  Wallet add(Wallet wallet);
+  Wallet save(Wallet wallet);
 
   void creditBalance(UUID walletId, BigDecimal amount);
 

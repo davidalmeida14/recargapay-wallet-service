@@ -15,7 +15,6 @@ import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -27,7 +26,11 @@ public class DepositService {
   private final EntryRepository entryRepository;
   private final TransactionTemplate transactionTemplate;
 
-  public DepositService(WalletRepository walletRepository, TransactionRepository transactionRepository, EntryRepository entryRepository, TransactionTemplate transactionTemplate) {
+  public DepositService(
+      WalletRepository walletRepository,
+      TransactionRepository transactionRepository,
+      EntryRepository entryRepository,
+      TransactionTemplate transactionTemplate) {
     this.walletRepository = walletRepository;
     this.transactionRepository = transactionRepository;
     this.entryRepository = entryRepository;
@@ -57,7 +60,7 @@ public class DepositService {
               transactionRepository.create(transaction);
               entryRepository.create(createEntry(transaction));
               wallet.deposit(amount);
-              walletRepository.add(wallet);
+              walletRepository.save(wallet);
               transaction.processed();
               transactionRepository.update(transaction);
               return transaction;

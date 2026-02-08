@@ -30,13 +30,11 @@ class CustomerControllerE2ETest extends EndToEndTest {
     @Test
     @DisplayName("returns 201 when registration is successful")
     void registersSuccessfully() throws Exception {
-      var body = "{\"fullName\":\"New Customer\",\"email\":\"new@example.com\",\"password\":\"password123\"}";
+      var body =
+          "{\"fullName\":\"New Customer\",\"email\":\"new@example.com\",\"password\":\"password123\"}";
 
       mockMvc
-          .perform(
-              post("/api/v1/customers")
-                  .contentType(APPLICATION_JSON)
-                  .content(body))
+          .perform(post("/api/v1/customers").contentType(APPLICATION_JSON).content(body))
           .andExpect(status().isCreated());
     }
 
@@ -46,13 +44,13 @@ class CustomerControllerE2ETest extends EndToEndTest {
       var email = "existing@example.com";
       register(mockMvc, "Existing User", email, "password");
 
-      var body = "{\"fullName\":\"Duplicate User\",\"email\":\"" + email + "\",\"password\":\"password123\"}";
+      var body =
+          "{\"fullName\":\"Duplicate User\",\"email\":\""
+              + email
+              + "\",\"password\":\"password123\"}";
 
       mockMvc
-          .perform(
-              post("/api/v1/customers")
-                  .contentType(APPLICATION_JSON)
-                  .content(body))
+          .perform(post("/api/v1/customers").contentType(APPLICATION_JSON).content(body))
           .andExpect(status().isConflict());
     }
 
@@ -62,10 +60,7 @@ class CustomerControllerE2ETest extends EndToEndTest {
       var body = "{\"fullName\":\"\",\"email\":\"not-an-email\",\"password\":\"\"}";
 
       mockMvc
-          .perform(
-              post("/api/v1/customers")
-                  .contentType(APPLICATION_JSON)
-                  .content(body))
+          .perform(post("/api/v1/customers").contentType(APPLICATION_JSON).content(body))
           .andExpect(status().isBadRequest());
     }
   }

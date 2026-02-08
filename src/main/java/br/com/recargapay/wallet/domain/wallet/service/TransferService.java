@@ -6,35 +6,46 @@ import static br.com.recargapay.wallet.domain.transaction.model.Status.PENDING;
 import static br.com.recargapay.wallet.domain.transaction.model.Type.TRANSFER;
 import static br.com.recargapay.wallet.infrastructure.common.UUIDGenerator.generate;
 
+import br.com.recargapay.wallet.domain.transaction.event.TransferCreditPendingEvent;
+import br.com.recargapay.wallet.domain.transaction.exception.TransactionNotFoundException;
 import br.com.recargapay.wallet.domain.transaction.model.Entry;
 import br.com.recargapay.wallet.domain.transaction.model.Transaction;
 import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
 import br.com.recargapay.wallet.domain.transaction.repository.TransactionRepository;
 import br.com.recargapay.wallet.domain.wallet.exception.CurrencyMismatchException;
+import br.com.recargapay.wallet.domain.wallet.exception.InsufficientBalanceException;
 import br.com.recargapay.wallet.domain.wallet.exception.WalletNotFoundException;
 import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
+@Slf4j
 public class TransferService {
   private final WalletRepository walletRepository;
   private final TransactionRepository transactionRepository;
   private final EntryRepository entryRepository;
   private final TransactionTemplate transactionTemplate;
+  private final ApplicationEventPublisher applicationEventPublisher;
 
-  public TransferService(WalletRepository walletRepository, TransactionRepository transactionRepository, EntryRepository entryRepository, TransactionTemplate transactionTemplate) {
+  public TransferService(
+      WalletRepository walletRepository,
+      TransactionRepository transactionRepository,
+      EntryRepository entryRepository,
+      TransactionTemplate transactionTemplate,
+      ApplicationEventPublisher applicationEventPublisher) {
     this.walletRepository = walletRepository;
     this.transactionRepository = transactionRepository;
     this.entryRepository = entryRepository;
     this.transactionTemplate = transactionTemplate;
+    this.applicationEventPublisher = applicationEventPublisher;
   }
 
   public void transfer(
@@ -59,8 +70,6 @@ public class TransferService {
 
     transactionTemplate.executeWithoutResult(
         status -> {
-          // Lock wallets in deterministic order to avoid deadlocks
-
           Wallet originWallet =
               walletRepository
                   .loadByIdForUpdate(originWalletId)
@@ -75,22 +84,23 @@ public class TransferService {
             throw new CurrencyMismatchException(originWalletId, destinationWalletId);
           }
 
-          originWallet.withdraw(amount);
-          destinationWallet.deposit(amount);
+          if (originWallet.getBalance().compareTo(amount) < 0) {
+            throw new InsufficientBalanceException(
+                originWalletId, amount, originWallet.getBalance());
+          }
 
           Transaction transaction =
               createPending(originWalletId, destinationWalletId, amount, idempotencyId);
 
           transactionRepository.create(transaction);
 
-          entryRepository.create(
-              List.of(createDebitEntry(transaction), createCreditEntry(transaction)));
+          entryRepository.create(createDebitEntry(transaction));
 
-          walletRepository.add(originWallet);
-          walletRepository.add(destinationWallet);
+          originWallet.withdraw(amount);
+          walletRepository.save(originWallet);
 
-          transaction.processed();
-          transactionRepository.update(transaction);
+          applicationEventPublisher.publishEvent(
+              new TransferCreditPendingEvent(transaction.getId()));
         });
   }
 
@@ -126,5 +136,36 @@ public class TransferService {
         PENDING,
         OffsetDateTime.now(),
         OffsetDateTime.now());
+  }
+
+  public void processDestinationCredit(UUID transactionId) {
+
+    Transaction transaction =
+        transactionRepository
+            .loadById(transactionId)
+            .orElseThrow(() -> new TransactionNotFoundException(transactionId));
+
+    if (transaction.isCompleted()) {
+      log.warn("Transaction {} already completed.", transactionId);
+      return;
+    }
+
+    if (!transaction.isTransfer()) {
+      log.warn("Transaction {} is not a transfer.", transactionId);
+      return;
+    }
+
+    transactionTemplate.executeWithoutResult(
+        status -> {
+          Wallet wallet =
+              walletRepository
+                  .loadByIdForUpdate(transaction.getWalletDestinationId())
+                  .orElseThrow();
+          entryRepository.create(createCreditEntry(transaction));
+          wallet.deposit(transaction.getAmount());
+          walletRepository.save(wallet);
+          transaction.processed();
+          transactionRepository.update(transaction);
+        });
   }
 }

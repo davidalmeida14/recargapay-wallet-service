@@ -1,7 +1,6 @@
 package br.com.recargapay.wallet.unit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -31,7 +30,7 @@ class AuthControllerTest extends UnitTest {
   @DisplayName("Should register customer successfully")
   void registerSuccessfully() {
     var request = new RegisterRequest("John Doe", "john@example.com", "password123");
-    
+
     when(customerRepository.findByEmail(request.email())).thenReturn(Optional.empty());
     when(passwordEncoder.encode(request.password())).thenReturn("encodedPassword");
 
@@ -45,8 +44,9 @@ class AuthControllerTest extends UnitTest {
   @DisplayName("Should return conflict when email already exists")
   void returnConflictWhenEmailExists() {
     var request = new RegisterRequest("John Doe", "john@example.com", "password123");
-    
-    when(customerRepository.findByEmail(request.email())).thenReturn(Optional.of(mock(Customer.class)));
+
+    when(customerRepository.findByEmail(request.email()))
+        .thenReturn(Optional.of(mock(Customer.class)));
 
     var response = authController.register(request);
 

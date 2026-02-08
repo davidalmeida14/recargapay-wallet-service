@@ -1,17 +1,18 @@
 package br.com.recargapay.wallet.domain.transaction.model;
 
-import br.com.recargapay.wallet.infrastructure.common.UUIDGenerator;
 import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
-import java.time.OffsetDateTime;
-import java.util.UUID;
-
 @Entity(name = "transactions")
 @Table(name = "transactions")
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor
 public class Transaction {
 
   @Id private UUID id;
@@ -42,67 +43,16 @@ public class Transaction {
   @Column(name = "updated_at")
   private OffsetDateTime updatedAt;
 
-  public Transaction() {}
-
-  public Transaction(
-      UUID id,
-      UUID walletId,
-      UUID walletDestinationId,
-      String idempotencyId,
-      BigDecimal amount,
-      Type type,
-      Status status,
-      OffsetDateTime createdAt,
-      OffsetDateTime updatedAt) {
-    this.id = id;
-    this.walletId = walletId;
-    this.walletDestinationId = walletDestinationId;
-    this.idempotencyId = idempotencyId;
-    this.amount = amount;
-    this.type = type;
-    this.status = status;
-    this.createdAt = createdAt;
-    this.updatedAt = updatedAt;
-  }
-
-  public UUID getId() {
-    return id;
-  }
-
-  public UUID getWalletId() {
-    return walletId;
-  }
-
-  public UUID getWalletDestinationId() {
-    return walletDestinationId;
-  }
-
-  public String getIdempotencyId() {
-    return idempotencyId;
-  }
-
-  public BigDecimal getAmount() {
-    return amount;
-  }
-
-  public Type getType() {
-    return type;
-  }
-
-  public Status getStatus() {
-    return status;
-  }
-
-  public OffsetDateTime getCreatedAt() {
-    return createdAt;
-  }
-
-  public OffsetDateTime getUpdatedAt() {
-    return updatedAt;
-  }
-
   public void processed() {
     this.status = Status.PROCESSED;
     this.updatedAt = OffsetDateTime.now();
+  }
+
+  public boolean isCompleted() {
+    return status == Status.PROCESSED;
+  }
+
+  public boolean isTransfer() {
+    return type == Type.TRANSFER;
   }
 }

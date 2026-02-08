@@ -7,4 +7,6 @@ import java.util.UUID;
 
 public record TransferRequest(
     @NotNull(message = "destinationWalletId is required") UUID destinationWalletId,
-    @NotNull(message = "amount is required") @DecimalMin(value = "0.01", message = "amount must be positive") BigDecimal amount) {}
+    @NotNull(message = "amount is required")
+        @DecimalMin(value = "0.01", message = "amount must be positive")
+        BigDecimal amount) {}

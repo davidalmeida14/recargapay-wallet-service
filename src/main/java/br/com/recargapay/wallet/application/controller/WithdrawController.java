@@ -4,14 +4,13 @@ import br.com.recargapay.wallet.application.Headers;
 import br.com.recargapay.wallet.application.definitions.TransactionResponse;
 import br.com.recargapay.wallet.application.definitions.WithdrawRequest;
 import br.com.recargapay.wallet.domain.transaction.model.Transaction;
+import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.service.WalletService;
 import br.com.recargapay.wallet.domain.wallet.service.WithdrawService;
-import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.infrastructure.security.SecurityService;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,7 +22,10 @@ public class WithdrawController {
   private final WalletService walletService;
   private final SecurityService securityService;
 
-  public WithdrawController(WithdrawService withdrawService, WalletService walletService, SecurityService securityService) {
+  public WithdrawController(
+      WithdrawService withdrawService,
+      WalletService walletService,
+      SecurityService securityService) {
     this.withdrawService = withdrawService;
     this.walletService = walletService;
     this.securityService = securityService;

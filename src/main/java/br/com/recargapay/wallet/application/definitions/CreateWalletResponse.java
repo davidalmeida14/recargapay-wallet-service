@@ -1,7 +1,6 @@
 package br.com.recargapay.wallet.application.definitions;
 
 import br.com.recargapay.wallet.domain.wallet.model.Wallet;
-
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
