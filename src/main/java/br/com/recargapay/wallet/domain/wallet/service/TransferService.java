@@ -20,6 +20,9 @@ import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+
+import br.com.recargapay.wallet.infrastructure.common.Either;
+import br.com.recargapay.wallet.infrastructure.common.Error;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.context.ApplicationEventPublisher;
@@ -48,7 +51,7 @@ public class TransferService {
     this.applicationEventPublisher = applicationEventPublisher;
   }
 
-  public void transfer(
+  public Transaction transfer(
       @NonNull UUID originWalletId,
       @NonNull UUID destinationWalletId,
       @NonNull BigDecimal amount,
@@ -65,10 +68,10 @@ public class TransferService {
         transactionRepository.findByWalletIdAndIdempotencyIdAndType(
             originWalletId, idempotencyId, TRANSFER);
     if (existing.isPresent()) {
-      return;
+      return existing.get();
     }
 
-    transactionTemplate.executeWithoutResult(
+    return transactionTemplate.execute(
         status -> {
           Wallet originWallet =
               walletRepository
@@ -101,6 +104,8 @@ public class TransferService {
 
           applicationEventPublisher.publishEvent(
               new TransferCreditPendingEvent(transaction.getId()));
+
+          return transaction;
         });
   }
 
@@ -143,10 +148,11 @@ public class TransferService {
     Transaction transaction =
         transactionRepository
             .loadById(transactionId)
-            .orElseThrow(() -> {
-              log.error("Transaction {} not found for processing credit", transactionId);
-              return new TransactionNotFoundException(transactionId);
-            });
+            .orElseThrow(
+                () -> {
+                  log.error("Transaction {} not found for processing credit", transactionId);
+                  return new TransactionNotFoundException(transactionId);
+                });
 
     if (transaction.isCompleted()) {
       log.warn("Transaction {} already completed.", transactionId);

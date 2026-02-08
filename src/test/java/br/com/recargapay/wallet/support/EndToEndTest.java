@@ -72,10 +72,14 @@ public abstract class EndToEndTest {
 
   @AfterEach
   void cleanupDatabase() {
-    jdbcTemplate.execute("TRUNCATE TABLE entries CASCADE");
-    jdbcTemplate.execute("TRUNCATE TABLE transactions CASCADE");
-    jdbcTemplate.execute("TRUNCATE TABLE wallets CASCADE");
-    jdbcTemplate.execute("TRUNCATE TABLE customers CASCADE");
+    try {
+      jdbcTemplate.execute("TRUNCATE TABLE entries CASCADE");
+      jdbcTemplate.execute("TRUNCATE TABLE transactions CASCADE");
+      jdbcTemplate.execute("TRUNCATE TABLE wallets CASCADE");
+      jdbcTemplate.execute("TRUNCATE TABLE customers CASCADE");
+    } catch (Exception e) {
+      System.err.println("Database cleanup failed: " + e.getMessage());
+    }
   }
 
   protected String login(

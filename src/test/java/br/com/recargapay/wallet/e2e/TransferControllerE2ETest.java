@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -33,12 +34,71 @@ class TransferControllerE2ETest extends EndToEndTest {
   @Autowired private ObjectMapper objectMapper;
   private ExecutorService executorService = Executors.newFixedThreadPool(2);
 
+  private void createWallet(String token, String currency) throws Exception {
+    mockMvc
+        .perform(
+            put("/api/v1/wallets")
+                .header("Authorization", "Bearer " + token)
+                .contentType(APPLICATION_JSON)
+                .content("{\"currency\":\"" + currency + "\"}"))
+        .andExpect(status().isCreated());
+  }
+
+  private String createWalletAndGetId(String token, String currency) throws Exception {
+    var result =
+        mockMvc
+            .perform(
+                put("/api/v1/wallets")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(APPLICATION_JSON)
+                    .content("{\"currency\":\"" + currency + "\"}"))
+            .andExpect(status().isCreated())
+            .andReturn();
+    return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asText();
+  }
+
+  private void deposit(String token, String amount, String idempotencyId) throws Exception {
+    mockMvc
+        .perform(
+            put("/api/v1/deposits")
+                .header("Authorization", "Bearer " + token)
+                .header(Headers.X_IDEMPOTENCY_ID, idempotencyId)
+                .contentType(APPLICATION_JSON)
+                .content("{\"amount\":\"" + amount + "\"}"))
+        .andExpect(status().isOk());
+  }
+
+  private void awaitBalance(String token, double expectedBalance) throws Exception {
+    int maxRetries = 10;
+    for (int i = 0; i < maxRetries; i++) {
+      var result =
+          mockMvc
+              .perform(get("/api/v1/wallets/balance").header("Authorization", "Bearer " + token))
+              .andExpect(status().isOk())
+              .andReturn();
+      var currentBalance =
+          objectMapper
+              .readTree(result.getResponse().getContentAsString())
+              .get("balance")
+              .asDouble();
+      if (Math.abs(currentBalance - expectedBalance) < 0.001) {
+        return;
+      }
+      Thread.sleep(500);
+    }
+    // Final check for assertion error
+    mockMvc
+        .perform(get("/api/v1/wallets/balance").header("Authorization", "Bearer " + token))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.balance").value(expectedBalance));
+  }
+
   @Nested
   @DisplayName("PUT /api/v1/transfers")
   class Transfer {
 
     @Test
-    @DisplayName("returns 200 and moves balance between wallets")
+    @DisplayName("returns 200 and moves balance between wallets (async credit)")
     void transfersSuccessfully() throws Exception {
       var emailA = "customerA@example.com";
       var emailB = "customerB@example.com";
@@ -50,35 +110,10 @@ class TransferControllerE2ETest extends EndToEndTest {
       var tokenA = login(mockMvc, emailA, password);
       var tokenB = login(mockMvc, emailB, password);
 
-      mockMvc
-          .perform(
-              put("/api/v1/wallets")
-                  .header("Authorization", "Bearer " + tokenA)
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"currency\":\"BRL\"}"))
-          .andExpect(status().isCreated());
+      createWallet(tokenA, "BRL");
+      var destId = createWalletAndGetId(tokenB, "BRL");
 
-      var createB =
-          mockMvc
-              .perform(
-                  put("/api/v1/wallets")
-                      .header("Authorization", "Bearer " + tokenB)
-                      .contentType(APPLICATION_JSON)
-                      .content("{\"currency\":\"BRL\"}"))
-              .andExpect(status().isCreated())
-              .andReturn();
-
-      var destId =
-          objectMapper.readTree(createB.getResponse().getContentAsString()).get("id").asText();
-
-      mockMvc
-          .perform(
-              put("/api/v1/deposits")
-                  .header("Authorization", "Bearer " + tokenA)
-                  .header(Headers.X_IDEMPOTENCY_ID, "e2e-dep-origin")
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"amount\":\"150.00\"}"))
-          .andExpect(status().isOk());
+      deposit(tokenA, "150.00", "e2e-dep-origin");
 
       var transferBody = "{\"destinationWalletId\":\"%s\",\"amount\":\"60.00\"}".formatted(destId);
       mockMvc
@@ -88,19 +123,19 @@ class TransferControllerE2ETest extends EndToEndTest {
                   .header(Headers.X_IDEMPOTENCY_ID, "e2e-transfer-1")
                   .contentType(APPLICATION_JSON)
                   .content(transferBody))
-          .andExpect(status().isOk());
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.id").exists())
+          .andExpect(jsonPath("$.amount").value(60.00))
+          .andExpect(jsonPath("$.availableBalance").value(90.00));
 
-      Thread.sleep(1000); // Give time for async processing
-
+      // Debit should be immediate
       mockMvc
           .perform(get("/api/v1/wallets/balance").header("Authorization", "Bearer " + tokenA))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.balance").value(90));
 
-      mockMvc
-          .perform(get("/api/v1/wallets/balance").header("Authorization", "Bearer " + tokenB))
-          .andExpect(status().isOk())
-          .andExpect(jsonPath("$.balance").value(60));
+      // Credit is async, use polling
+      awaitBalance(tokenB, 60.00);
     }
 
     @Test
@@ -116,35 +151,10 @@ class TransferControllerE2ETest extends EndToEndTest {
       var tokenA = login(mockMvc, emailA, password);
       var tokenB = login(mockMvc, emailB, password);
 
-      mockMvc
-          .perform(
-              put("/api/v1/wallets")
-                  .header("Authorization", "Bearer " + tokenA)
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"currency\":\"BRL\"}"))
-          .andExpect(status().isCreated());
+      createWallet(tokenA, "BRL");
+      var destId = createWalletAndGetId(tokenB, "USD");
 
-      var createB =
-          mockMvc
-              .perform(
-                  put("/api/v1/wallets")
-                      .header("Authorization", "Bearer " + tokenB)
-                      .contentType(APPLICATION_JSON)
-                      .content("{\"currency\":\"USD\"}"))
-              .andExpect(status().isCreated())
-              .andReturn();
-
-      var destId =
-          objectMapper.readTree(createB.getResponse().getContentAsString()).get("id").asText();
-
-      mockMvc
-          .perform(
-              put("/api/v1/deposits")
-                  .header("Authorization", "Bearer " + tokenA)
-                  .header(Headers.X_IDEMPOTENCY_ID, "e2e-dep-brl")
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"amount\":\"100.00\"}"))
-          .andExpect(status().isOk());
+      deposit(tokenA, "100.00", "e2e-dep-brl");
 
       var transferBody = "{\"destinationWalletId\":\"%s\",\"amount\":\"50.00\"}".formatted(destId);
       mockMvc
@@ -167,22 +177,8 @@ class TransferControllerE2ETest extends EndToEndTest {
       register(mockMvc, "Customer Null", email, password);
       var token = login(mockMvc, email, password);
 
-      mockMvc
-          .perform(
-              put("/api/v1/wallets")
-                  .header("Authorization", "Bearer " + token)
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"currency\":\"BRL\"}"))
-          .andExpect(status().isCreated());
-
-      mockMvc
-          .perform(
-              put("/api/v1/deposits")
-                  .header("Authorization", "Bearer " + token)
-                  .header(Headers.X_IDEMPOTENCY_ID, "e2e-dep-null-dest")
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"amount\":\"100.00\"}"))
-          .andExpect(status().isOk());
+      createWallet(token, "BRL");
+      deposit(token, "100.00", "e2e-dep-null-dest");
 
       var transferBody = "{\"destinationWalletId\":null,\"amount\":\"50.00\"}";
       mockMvc
@@ -209,35 +205,10 @@ class TransferControllerE2ETest extends EndToEndTest {
       var tokenA = login(mockMvc, emailA, password);
       var tokenB = login(mockMvc, emailB, password);
 
-      mockMvc
-          .perform(
-              put("/api/v1/wallets")
-                  .header("Authorization", "Bearer " + tokenA)
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"currency\":\"BRL\"}"))
-          .andExpect(status().isCreated());
+      createWallet(tokenA, "BRL");
+      var destId = createWalletAndGetId(tokenB, "BRL");
 
-      var createB =
-          mockMvc
-              .perform(
-                  put("/api/v1/wallets")
-                      .header("Authorization", "Bearer " + tokenB)
-                      .contentType(APPLICATION_JSON)
-                      .content("{\"currency\":\"BRL\"}"))
-              .andExpect(status().isCreated())
-              .andReturn();
-
-      var destId =
-          objectMapper.readTree(createB.getResponse().getContentAsString()).get("id").asText();
-
-      mockMvc
-          .perform(
-              put("/api/v1/deposits")
-                  .header("Authorization", "Bearer " + tokenA)
-                  .header(Headers.X_IDEMPOTENCY_ID, "e2e-dep-null-amount")
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"amount\":\"100.00\"}"))
-          .andExpect(status().isOk());
+      deposit(tokenA, "100.00", "e2e-dep-null-amount");
 
       var transferBody = "{\"destinationWalletId\":\"%s\",\"amount\":null}".formatted(destId);
       mockMvc
@@ -264,35 +235,10 @@ class TransferControllerE2ETest extends EndToEndTest {
       var tokenA = login(mockMvc, emailA, password);
       var tokenB = login(mockMvc, emailB, password);
 
-      mockMvc
-          .perform(
-              put("/api/v1/wallets")
-                  .header("Authorization", "Bearer " + tokenA)
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"currency\":\"BRL\"}"))
-          .andExpect(status().isCreated());
+      createWallet(tokenA, "BRL");
+      var destId = createWalletAndGetId(tokenB, "BRL");
 
-      var createB =
-          mockMvc
-              .perform(
-                  put("/api/v1/wallets")
-                      .header("Authorization", "Bearer " + tokenB)
-                      .contentType(APPLICATION_JSON)
-                      .content("{\"currency\":\"BRL\"}"))
-              .andExpect(status().isCreated())
-              .andReturn();
-
-      var destId =
-          objectMapper.readTree(createB.getResponse().getContentAsString()).get("id").asText();
-
-      mockMvc
-          .perform(
-              put("/api/v1/deposits")
-                  .header("Authorization", "Bearer " + tokenA)
-                  .header(Headers.X_IDEMPOTENCY_ID, "e2e-dep-neg-amount")
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"amount\":\"100.00\"}"))
-          .andExpect(status().isOk());
+      deposit(tokenA, "100.00", "e2e-dep-neg-amount");
 
       var transferBody = "{\"destinationWalletId\":\"%s\",\"amount\":\"-10.00\"}".formatted(destId);
       mockMvc
@@ -320,35 +266,10 @@ class TransferControllerE2ETest extends EndToEndTest {
       var tokenA = login(mockMvc, emailA, password);
       var tokenB = login(mockMvc, emailB, password);
 
-      mockMvc
-          .perform(
-              put("/api/v1/wallets")
-                  .header("Authorization", "Bearer " + tokenA)
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"currency\":\"BRL\"}"))
-          .andExpect(status().isCreated());
+      createWallet(tokenA, "BRL");
+      var destId = createWalletAndGetId(tokenB, "BRL");
 
-      var createB =
-          mockMvc
-              .perform(
-                  put("/api/v1/wallets")
-                      .header("Authorization", "Bearer " + tokenB)
-                      .contentType(APPLICATION_JSON)
-                      .content("{\"currency\":\"BRL\"}"))
-              .andExpect(status().isCreated())
-              .andReturn();
-
-      var destId =
-          objectMapper.readTree(createB.getResponse().getContentAsString()).get("id").asText();
-
-      mockMvc
-          .perform(
-              put("/api/v1/deposits")
-                  .header("Authorization", "Bearer " + tokenA)
-                  .header(Headers.X_IDEMPOTENCY_ID, "e2e-dep-race")
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"amount\":\"100.00\"}"))
-          .andExpect(status().isOk());
+      deposit(tokenA, "100.00", "e2e-dep-race");
 
       var transferBody = "{\"destinationWalletId\":\"%s\",\"amount\":\"100.00\"}".formatted(destId);
 
@@ -393,44 +314,24 @@ class TransferControllerE2ETest extends EndToEndTest {
                 },
                 executorService);
 
-        // Wait for both futures to complete
-        var status1 = future1.get(10, java.util.concurrent.TimeUnit.SECONDS);
-        var status2 = future2.get(10, java.util.concurrent.TimeUnit.SECONDS);
+        var status1 = future1.get(10, TimeUnit.SECONDS);
+        var status2 = future2.get(10, TimeUnit.SECONDS);
 
-        // One should succeed (200), one should fail (422 - InsufficientBalanceException)
         var successCount = (status1 == 200 ? 1 : 0) + (status2 == 200 ? 1 : 0);
         var failureCount = (status1 == 422 ? 1 : 0) + (status2 == 422 ? 1 : 0);
 
-        assert successCount == 1
-            : "Expected exactly one successful transfer, got "
-                + successCount
-                + " (status1="
-                + status1
-                + ", status2="
-                + status2
-                + ")";
-        assert failureCount == 1
-            : "Expected exactly one failed transfer, got "
-                + failureCount
-                + " (status1="
-                + status1
-                + ", status2="
-                + status2
-                + ")";
+        assert successCount == 1 : "Expected 1 success, got " + successCount;
+        assert failureCount == 1 : "Expected 1 failure, got " + failureCount;
       } finally {
         executorService.shutdown();
       }
 
-      // Verify final balance: only one transfer succeeded
       mockMvc
           .perform(get("/api/v1/wallets/balance").header("Authorization", "Bearer " + tokenA))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.balance").value(0));
 
-      mockMvc
-          .perform(get("/api/v1/wallets/balance").header("Authorization", "Bearer " + tokenB))
-          .andExpect(status().isOk())
-          .andExpect(jsonPath("$.balance").value(100));
+      awaitBalance(tokenB, 100.00);
     }
 
     @Test
@@ -446,35 +347,10 @@ class TransferControllerE2ETest extends EndToEndTest {
       var tokenA = login(mockMvc, emailA, password);
       var tokenB = login(mockMvc, emailB, password);
 
-      mockMvc
-          .perform(
-              put("/api/v1/wallets")
-                  .header("Authorization", "Bearer " + tokenA)
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"currency\":\"BRL\"}"))
-          .andExpect(status().isCreated());
+      createWallet(tokenA, "BRL");
+      var destId = createWalletAndGetId(tokenB, "BRL");
 
-      var createB =
-          mockMvc
-              .perform(
-                  put("/api/v1/wallets")
-                      .header("Authorization", "Bearer " + tokenB)
-                      .contentType(APPLICATION_JSON)
-                      .content("{\"currency\":\"BRL\"}"))
-              .andExpect(status().isCreated())
-              .andReturn();
-
-      var destId =
-          objectMapper.readTree(createB.getResponse().getContentAsString()).get("id").asText();
-
-      mockMvc
-          .perform(
-              put("/api/v1/deposits")
-                  .header("Authorization", "Bearer " + tokenA)
-                  .header(Headers.X_IDEMPOTENCY_ID, "e2e-dep-idem")
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"amount\":\"80.00\"}"))
-          .andExpect(status().isOk());
+      deposit(tokenA, "80.00", "e2e-dep-idem");
 
       var transferBody = "{\"destinationWalletId\":\"%s\",\"amount\":\"30.00\"}".formatted(destId);
 
@@ -493,12 +369,9 @@ class TransferControllerE2ETest extends EndToEndTest {
       mockMvc
           .perform(get("/api/v1/wallets/balance").header("Authorization", "Bearer " + tokenA))
           .andExpect(status().isOk())
-          .andExpect(jsonPath("$.balance").value(50));
+          .andExpect(jsonPath("$.balance").value(50.00));
 
-      mockMvc
-          .perform(get("/api/v1/wallets/balance").header("Authorization", "Bearer " + tokenB))
-          .andExpect(status().isOk())
-          .andExpect(jsonPath("$.balance").value(30));
+      awaitBalance(tokenB, 30.00);
     }
   }
 }
