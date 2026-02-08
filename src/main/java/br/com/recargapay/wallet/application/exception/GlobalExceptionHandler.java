@@ -2,6 +2,7 @@ package br.com.recargapay.wallet.application.exception;
 
 import br.com.recargapay.wallet.domain.wallet.exception.CurrencyMismatchException;
 import br.com.recargapay.wallet.domain.wallet.exception.InsufficientBalanceException;
+import br.com.recargapay.wallet.domain.wallet.exception.WalletErrorCode;
 import br.com.recargapay.wallet.domain.wallet.exception.WalletNotFoundException;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -17,7 +18,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(WalletNotFoundException.class)
   public ResponseEntity<Map<String, Object>> handleWalletNotFound(WalletNotFoundException ex) {
     var body = new java.util.HashMap<String, Object>();
-    body.put("error", ex.getClass().getSimpleName());
+    body.put("code", WalletErrorCode.WALLET_NOT_FOUND.getCode());
     body.put("message", ex.getMessage());
     if (ex.getWalletId() != null) {
       body.put("walletId", ex.getWalletId().toString());
@@ -28,11 +29,11 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(InsufficientBalanceException.class)
   public ResponseEntity<Map<String, Object>> handleInsufficientBalance(
       InsufficientBalanceException ex) {
-    return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
         .body(
             Map.of(
-                "error", ex.getClass().getSimpleName(),
-                "message", ex.getMessage(),
+                "code", WalletErrorCode.INSUFFICIENT_BALANCE.getCode(),
+                "message", WalletErrorCode.INSUFFICIENT_BALANCE.getMessage(),
                 "walletId", ex.getWalletId().toString(),
                 "requested", ex.getRequested().toString(),
                 "available", ex.getAvailable().toString()));
@@ -43,8 +44,8 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
         .body(
             Map.of(
-                "error", ex.getClass().getSimpleName(),
-                "message", ex.getMessage(),
+                "code", WalletErrorCode.CURRENCY_MISMATCH.getCode(),
+                "message", WalletErrorCode.CURRENCY_MISMATCH.getMessage(),
                 "originWalletId", ex.getOriginWalletId().toString(),
                 "destinationWalletId", ex.getDestinationWalletId().toString()));
   }

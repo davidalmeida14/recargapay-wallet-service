@@ -12,8 +12,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -34,8 +32,7 @@ import software.amazon.awssdk.services.sqs.model.ListQueuesResponse;
 @Transactional
 public abstract class EndToEndTest {
 
-  @Autowired
-  private JdbcTemplate jdbcTemplate;
+  @Autowired private JdbcTemplate jdbcTemplate;
 
   @BeforeAll
   static void setupQueues() throws Exception {
@@ -43,26 +40,26 @@ public abstract class EndToEndTest {
     String region = "us-east-1";
     String queueName = "transfer-credit-pending";
 
-    try (SqsClient sqsClient = SqsClient.builder()
-        .endpointOverride(java.net.URI.create(endpoint))
-        .region(Region.of(region))
-        .credentialsProvider(StaticCredentialsProvider.create(
-            AwsBasicCredentials.create("test", "test")))
-        .build()) {
+    try (SqsClient sqsClient =
+        SqsClient.builder()
+            .endpointOverride(java.net.URI.create(endpoint))
+            .region(Region.of(region))
+            .credentialsProvider(
+                StaticCredentialsProvider.create(AwsBasicCredentials.create("test", "test")))
+            .build()) {
 
       ListQueuesResponse listQueuesResponse = sqsClient.listQueues();
-      boolean queueExists = listQueuesResponse.queueUrls().stream()
-          .anyMatch(url -> url.contains(queueName));
+      boolean queueExists =
+          listQueuesResponse.queueUrls().stream().anyMatch(url -> url.contains(queueName));
 
       if (!queueExists) {
-        sqsClient.createQueue(CreateQueueRequest.builder()
-            .queueName(queueName)
-            .build());
+        sqsClient.createQueue(CreateQueueRequest.builder().queueName(queueName).build());
       } else {
-        String queueUrl = listQueuesResponse.queueUrls().stream()
-            .filter(url -> url.contains(queueName))
-            .findFirst()
-            .get();
+        String queueUrl =
+            listQueuesResponse.queueUrls().stream()
+                .filter(url -> url.contains(queueName))
+                .findFirst()
+                .get();
         sqsClient.purgeQueue(b -> b.queueUrl(queueUrl));
       }
     } catch (Exception e) {
@@ -80,6 +77,61 @@ public abstract class EndToEndTest {
     } catch (Exception e) {
       System.err.println("Database cleanup failed: " + e.getMessage());
     }
+  }
+
+  protected String createWalletAndGetId(
+      org.springframework.test.web.servlet.MockMvc mockMvc, String token, String currency)
+      throws Exception {
+    var result =
+        mockMvc
+            .perform(
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                        "/api/v1/wallets")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(APPLICATION_JSON)
+                    .content("{\"currency\":\"" + currency + "\"}"))
+            .andExpect(status().isCreated())
+            .andReturn();
+    return new com.fasterxml.jackson.databind.ObjectMapper()
+        .readTree(result.getResponse().getContentAsString())
+        .get("id")
+        .asText();
+  }
+
+  protected void deposit(
+      org.springframework.test.web.servlet.MockMvc mockMvc,
+      String token,
+      String amount,
+      String idempotencyId)
+      throws Exception {
+    mockMvc
+        .perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                    "/api/v1/deposits")
+                .header("Authorization", "Bearer " + token)
+                .header(
+                    br.com.recargapay.wallet.application.Headers.X_IDEMPOTENCY_ID, idempotencyId)
+                .contentType(APPLICATION_JSON)
+                .content("{\"amount\":\"" + amount + "\"}"))
+        .andExpect(status().isOk());
+  }
+
+  protected void withdraw(
+      org.springframework.test.web.servlet.MockMvc mockMvc,
+      String token,
+      String amount,
+      String idempotencyId)
+      throws Exception {
+    mockMvc
+        .perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                    "/api/v1/withdrawals")
+                .header("Authorization", "Bearer " + token)
+                .header(
+                    br.com.recargapay.wallet.application.Headers.X_IDEMPOTENCY_ID, idempotencyId)
+                .contentType(APPLICATION_JSON)
+                .content("{\"amount\":\"" + amount + "\"}"))
+        .andExpect(status().isOk());
   }
 
   protected String login(

@@ -12,17 +12,14 @@ import br.com.recargapay.wallet.domain.transaction.model.Entry;
 import br.com.recargapay.wallet.domain.transaction.model.Transaction;
 import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
 import br.com.recargapay.wallet.domain.transaction.repository.TransactionRepository;
-import br.com.recargapay.wallet.domain.wallet.exception.CurrencyMismatchException;
-import br.com.recargapay.wallet.domain.wallet.exception.InsufficientBalanceException;
-import br.com.recargapay.wallet.domain.wallet.exception.WalletNotFoundException;
+import br.com.recargapay.wallet.domain.wallet.exception.WalletErrorCode;
 import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
+import br.com.recargapay.wallet.infrastructure.common.Either;
+import br.com.recargapay.wallet.infrastructure.common.Error;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-
-import br.com.recargapay.wallet.infrastructure.common.Either;
-import br.com.recargapay.wallet.infrastructure.common.Error;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.context.ApplicationEventPublisher;
@@ -51,45 +48,61 @@ public class TransferService {
     this.applicationEventPublisher = applicationEventPublisher;
   }
 
-  public Transaction transfer(
+  public Either<Error, Transaction> transfer(
       @NonNull UUID originWalletId,
       @NonNull UUID destinationWalletId,
       @NonNull BigDecimal amount,
       @NonNull String idempotencyId) {
     if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-      throw new IllegalArgumentException("Transfer amount must be greater than zero.");
+      return Either.left(
+          Error.of(
+              WalletErrorCode.INVALID_AMOUNT.getCode(),
+              WalletErrorCode.INVALID_AMOUNT.getMessage()));
     }
 
     if (originWalletId.equals(destinationWalletId)) {
-      throw new IllegalArgumentException("Origin and destination wallets must be different.");
+      return Either.left(
+          Error.of(
+              WalletErrorCode.SAME_WALLET_TRANSFER.getCode(),
+              WalletErrorCode.SAME_WALLET_TRANSFER.getMessage()));
     }
 
     var existing =
         transactionRepository.findByWalletIdAndIdempotencyIdAndType(
             originWalletId, idempotencyId, TRANSFER);
     if (existing.isPresent()) {
-      return existing.get();
+      return Either.right(existing.get());
     }
 
     return transactionTemplate.execute(
         status -> {
-          Wallet originWallet =
-              walletRepository
-                  .loadByIdForUpdate(originWalletId)
-                  .orElseThrow(() -> new WalletNotFoundException(originWalletId));
+          var originWalletOpt = walletRepository.loadByIdForUpdate(originWalletId);
+          if (originWalletOpt.isEmpty()) {
+            return Either.left(
+                Error.of(WalletErrorCode.WALLET_NOT_FOUND.getCode(), "Origin wallet not found"));
+          }
+          Wallet originWallet = originWalletOpt.get();
 
-          Wallet destinationWallet =
-              walletRepository
-                  .loadByIdForUpdate(destinationWalletId)
-                  .orElseThrow(() -> new WalletNotFoundException(destinationWalletId));
+          var destinationWalletOpt = walletRepository.loadByIdForUpdate(destinationWalletId);
+          if (destinationWalletOpt.isEmpty()) {
+            return Either.left(
+                Error.of(
+                    WalletErrorCode.WALLET_NOT_FOUND.getCode(), "Destination wallet not found"));
+          }
+          Wallet destinationWallet = destinationWalletOpt.get();
 
           if (!originWallet.getCurrency().equals(destinationWallet.getCurrency())) {
-            throw new CurrencyMismatchException(originWalletId, destinationWalletId);
+            return Either.left(
+                Error.of(
+                    WalletErrorCode.CURRENCY_MISMATCH.getCode(),
+                    WalletErrorCode.CURRENCY_MISMATCH.getMessage()));
           }
 
           if (originWallet.getBalance().compareTo(amount) < 0) {
-            throw new InsufficientBalanceException(
-                originWalletId, amount, originWallet.getBalance());
+            return Either.left(
+                Error.of(
+                    WalletErrorCode.INSUFFICIENT_BALANCE.getCode(),
+                    WalletErrorCode.INSUFFICIENT_BALANCE.getMessage()));
           }
 
           Transaction transaction =
@@ -105,7 +118,7 @@ public class TransferService {
           applicationEventPublisher.publishEvent(
               new TransferCreditPendingEvent(transaction.getId()));
 
-          return transaction;
+          return Either.right(transaction);
         });
   }
 

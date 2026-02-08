@@ -1,7 +1,7 @@
 --liquibase formatted sql
 --changeset david:V20260205103000__add_customer_table
 
-CREATE TABLE customers
+CREATE TABLE IF NOT EXISTS customers
 (
     id         UUID PRIMARY KEY,
     full_name  VARCHAR(255) NOT NULL,

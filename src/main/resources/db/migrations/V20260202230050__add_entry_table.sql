@@ -1,7 +1,7 @@
 --liquibase formatted sql
 --changeset david:V20260202230050__add_entry_table
 
-CREATE TABLE entries
+CREATE TABLE IF NOT EXISTS entries
 (
     id             UUID PRIMARY KEY,
     wallet_id      UUID           NOT NULL,
@@ -13,6 +13,6 @@ CREATE TABLE entries
     CONSTRAINT unk_wallet_transaction_financial_type_amount UNIQUE (wallet_id, transaction_id, financial_type, amount)
 );
 
-CREATE INDEX idx_entry_wallet_id ON entries (wallet_id);
-CREATE INDEX idx_entry_transaction_id ON entries (transaction_id);
+CREATE INDEX IF NOT EXISTS idx_entry_wallet_id ON entries (wallet_id);
+CREATE INDEX IF NOT EXISTS idx_entry_transaction_id ON entries (transaction_id);
 --rollback

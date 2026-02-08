@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import br.com.recargapay.wallet.application.Headers;
+import br.com.recargapay.wallet.domain.wallet.exception.WalletErrorCode;
 import br.com.recargapay.wallet.support.EndToEndTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -40,32 +41,11 @@ class WithdrawControllerE2ETest extends EndToEndTest {
       register(mockMvc, "Withdraw User", email, password);
       var token = login(mockMvc, email, password);
 
-      var createBody = "{\"currency\":\"BRL\"}";
-      mockMvc
-          .perform(
-              put("/api/v1/wallets")
-                  .header("Authorization", "Bearer " + token)
-                  .contentType(APPLICATION_JSON)
-                  .content(createBody))
-          .andExpect(status().isCreated());
+      createWalletAndGetId(mockMvc, token, "BRL");
 
-      mockMvc
-          .perform(
-              put("/api/v1/deposits")
-                  .header("Authorization", "Bearer " + token)
-                  .header(Headers.X_IDEMPOTENCY_ID, "e2e-dep-for-withdraw")
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"amount\":\"200.00\"}"))
-          .andExpect(status().isOk());
+      deposit(mockMvc, token, "200.00", "e2e-dep-for-withdraw");
 
-      mockMvc
-          .perform(
-              put("/api/v1/withdrawals")
-                  .header("Authorization", "Bearer " + token)
-                  .header(Headers.X_IDEMPOTENCY_ID, "e2e-withdraw-1")
-                  .contentType(APPLICATION_JSON)
-                  .content("{\"amount\":\"75.00\"}"))
-          .andExpect(status().isOk());
+      withdraw(mockMvc, token, "75.00", "e2e-withdraw-1");
 
       mockMvc
           .perform(get("/api/v1/wallets/balance").header("Authorization", "Bearer " + token))
@@ -81,14 +61,7 @@ class WithdrawControllerE2ETest extends EndToEndTest {
       register(mockMvc, "Insufficient User", email, password);
       var token = login(mockMvc, email, password);
 
-      var createBody = "{\"currency\":\"BRL\"}";
-      mockMvc
-          .perform(
-              put("/api/v1/wallets")
-                  .header("Authorization", "Bearer " + token)
-                  .contentType(APPLICATION_JSON)
-                  .content(createBody))
-          .andExpect(status().isCreated());
+      createWalletAndGetId(mockMvc, token, "BRL");
 
       mockMvc
           .perform(
@@ -97,8 +70,10 @@ class WithdrawControllerE2ETest extends EndToEndTest {
                   .header(Headers.X_IDEMPOTENCY_ID, "e2e-insufficient")
                   .contentType(APPLICATION_JSON)
                   .content("{\"amount\":\"100.00\"}"))
-          .andExpect(status().isUnprocessableEntity())
-          .andExpect(jsonPath("$.error").value("InsufficientBalanceException"));
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.code").value(WalletErrorCode.INSUFFICIENT_BALANCE.getCode()))
+          .andExpect(
+              jsonPath("$.message").value(WalletErrorCode.INSUFFICIENT_BALANCE.getMessage()));
     }
 
     @Test

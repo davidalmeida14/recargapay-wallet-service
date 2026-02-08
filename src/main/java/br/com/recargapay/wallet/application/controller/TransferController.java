@@ -3,7 +3,7 @@ package br.com.recargapay.wallet.application.controller;
 import br.com.recargapay.wallet.application.Headers;
 import br.com.recargapay.wallet.application.definitions.TransactionResponse;
 import br.com.recargapay.wallet.application.definitions.TransferRequest;
-import br.com.recargapay.wallet.domain.transaction.model.Transaction;
+import br.com.recargapay.wallet.domain.wallet.exception.WalletErrorCode;
 import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.service.TransferService;
 import br.com.recargapay.wallet.domain.wallet.service.WalletService;
@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -63,7 +64,7 @@ public class TransferController {
             content = @Content)
       })
   @PutMapping("/transfers")
-  public ResponseEntity<TransactionResponse> transfer(
+  public ResponseEntity<?> transfer(
       @Parameter(
               description = "Unique ID to ensure idempotency of the request",
               required = true,
@@ -75,12 +76,22 @@ public class TransferController {
     UUID customerId = securityService.getAuthenticatedCustomerId();
     Wallet originWallet = walletService.retrieveDefaultWallet(customerId);
 
-    Transaction transaction =
-        transferService.transfer(
-            originWallet.getId(), request.destinationWalletId(), request.amount(), idempotencyId);
-
-    BigDecimal availableBalance = walletService.retrieveBalance(originWallet.getId());
-
-    return ResponseEntity.ok(TransactionResponse.from(transaction, availableBalance));
+    return transferService
+        .transfer(
+            originWallet.getId(), request.destinationWalletId(), request.amount(), idempotencyId)
+        .fold(
+            error -> {
+              HttpStatus status =
+                  error.code().equals(WalletErrorCode.WALLET_NOT_FOUND.getCode())
+                      ? HttpStatus.NOT_FOUND
+                      : error.code().equals(WalletErrorCode.CURRENCY_MISMATCH.getCode())
+                          ? HttpStatus.UNPROCESSABLE_ENTITY
+                          : HttpStatus.BAD_REQUEST;
+              return ResponseEntity.status(status).body(error);
+            },
+            transaction -> {
+              BigDecimal availableBalance = walletService.retrieveBalance(originWallet.getId());
+              return ResponseEntity.ok(TransactionResponse.from(transaction, availableBalance));
+            });
   }
 }

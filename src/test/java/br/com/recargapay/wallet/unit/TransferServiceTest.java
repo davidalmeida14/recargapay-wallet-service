@@ -1,16 +1,13 @@
 package br.com.recargapay.wallet.unit;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import br.com.recargapay.wallet.domain.transaction.model.Transaction;
 import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
 import br.com.recargapay.wallet.domain.transaction.repository.TransactionRepository;
-import br.com.recargapay.wallet.domain.wallet.exception.CurrencyMismatchException;
-import br.com.recargapay.wallet.domain.wallet.exception.InsufficientBalanceException;
-import br.com.recargapay.wallet.domain.wallet.exception.WalletNotFoundException;
+import br.com.recargapay.wallet.domain.wallet.exception.WalletErrorCode;
 import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
 import br.com.recargapay.wallet.domain.wallet.service.TransferService;
@@ -65,7 +62,8 @@ class TransferServiceTest extends UnitTest {
     when(walletRepository.loadByIdForUpdate(originId)).thenReturn(Optional.of(origin));
     when(walletRepository.loadByIdForUpdate(destId)).thenReturn(Optional.of(dest));
 
-    Transaction result = transferService.transfer(originId, destId, amount, "idem-789");
+    var either = transferService.transfer(originId, destId, amount, "idem-789");
+    Transaction result = either.getRight().get();
 
     assertEquals(originId, result.getWalletId());
     assertEquals(destId, result.getWalletDestinationId());
@@ -78,7 +76,7 @@ class TransferServiceTest extends UnitTest {
   }
 
   @Test
-  @DisplayName("Should throw CurrencyMismatchException if currencies are different")
+  @DisplayName("Should return error if currencies are different")
   void throwCurrencyMismatch() {
     UUID originId = UUID.randomUUID();
     UUID destId = UUID.randomUUID();
@@ -91,13 +89,14 @@ class TransferServiceTest extends UnitTest {
     when(walletRepository.loadByIdForUpdate(originId)).thenReturn(Optional.of(origin));
     when(walletRepository.loadByIdForUpdate(destId)).thenReturn(Optional.of(dest));
 
-    assertThrows(
-        CurrencyMismatchException.class,
-        () -> transferService.transfer(originId, destId, BigDecimal.TEN, "idem"));
+    var result = transferService.transfer(originId, destId, BigDecimal.TEN, "idem");
+
+    assertTrue(result.isLeft());
+    assertEquals(WalletErrorCode.CURRENCY_MISMATCH.getCode(), result.getLeft().get().code());
   }
 
   @Test
-  @DisplayName("Should throw InsufficientBalanceException if origin has no funds")
+  @DisplayName("Should return error if origin has no funds")
   void throwInsufficientBalance() {
     UUID originId = UUID.randomUUID();
     UUID destId = UUID.randomUUID();
@@ -110,9 +109,10 @@ class TransferServiceTest extends UnitTest {
     when(walletRepository.loadByIdForUpdate(originId)).thenReturn(Optional.of(origin));
     when(walletRepository.loadByIdForUpdate(destId)).thenReturn(Optional.of(dest));
 
-    assertThrows(
-        InsufficientBalanceException.class,
-        () -> transferService.transfer(originId, destId, BigDecimal.TEN, "idem"));
+    var result = transferService.transfer(originId, destId, BigDecimal.TEN, "idem");
+
+    assertTrue(result.isLeft());
+    assertEquals(WalletErrorCode.INSUFFICIENT_BALANCE.getCode(), result.getLeft().get().code());
   }
 
   @Test
@@ -122,24 +122,24 @@ class TransferServiceTest extends UnitTest {
     when(transactionRepository.findByWalletIdAndIdempotencyIdAndType(any(), any(), any()))
         .thenReturn(Optional.of(existing));
 
-    Transaction result =
+    var result =
         transferService.transfer(UUID.randomUUID(), UUID.randomUUID(), BigDecimal.TEN, "idem");
 
-    assertEquals(existing, result);
+    assertEquals(existing, result.getRight().get());
     verify(walletRepository, never()).loadByIdForUpdate(any());
   }
 
   @Test
-  @DisplayName("Should throw exception if origin and destination are same")
+  @DisplayName("Should return error if origin and destination are same")
   void throwSameWallet() {
     UUID walletId = UUID.randomUUID();
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> transferService.transfer(walletId, walletId, BigDecimal.TEN, "idem"));
+    var result = transferService.transfer(walletId, walletId, BigDecimal.TEN, "idem");
+    assertTrue(result.isLeft());
+    assertEquals(WalletErrorCode.SAME_WALLET_TRANSFER.getCode(), result.getLeft().get().code());
   }
 
   @Test
-  @DisplayName("Should throw WalletNotFoundException if wallet does not exist")
+  @DisplayName("Should return error if wallet does not exist")
   void throwWalletNotFound() {
     UUID originId = UUID.randomUUID();
     UUID destId = UUID.randomUUID();
@@ -147,8 +147,8 @@ class TransferServiceTest extends UnitTest {
         .thenReturn(Optional.empty());
     when(walletRepository.loadByIdForUpdate(any())).thenReturn(Optional.empty());
 
-    assertThrows(
-        WalletNotFoundException.class,
-        () -> transferService.transfer(originId, destId, BigDecimal.TEN, "idem"));
+    var result = transferService.transfer(originId, destId, BigDecimal.TEN, "idem");
+    assertTrue(result.isLeft());
+    assertEquals(WalletErrorCode.WALLET_NOT_FOUND.getCode(), result.getLeft().get().code());
   }
 }

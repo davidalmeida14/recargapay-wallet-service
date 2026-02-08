@@ -1,7 +1,7 @@
 --liquibase formatted sql
 --changeset david:V20260202225332__add_wallet_table
 
-CREATE TABLE wallets
+CREATE TABLE IF NOT EXISTS wallets
 (
     id          UUID PRIMARY KEY,
     customer_id UUID       NOT NULL,

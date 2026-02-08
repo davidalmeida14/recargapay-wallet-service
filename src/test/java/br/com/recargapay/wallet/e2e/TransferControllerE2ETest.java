@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import br.com.recargapay.wallet.application.Headers;
+import br.com.recargapay.wallet.domain.wallet.exception.WalletErrorCode;
 import br.com.recargapay.wallet.support.EndToEndTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.concurrent.CompletableFuture;
@@ -42,30 +43,6 @@ class TransferControllerE2ETest extends EndToEndTest {
                 .contentType(APPLICATION_JSON)
                 .content("{\"currency\":\"" + currency + "\"}"))
         .andExpect(status().isCreated());
-  }
-
-  private String createWalletAndGetId(String token, String currency) throws Exception {
-    var result =
-        mockMvc
-            .perform(
-                put("/api/v1/wallets")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(APPLICATION_JSON)
-                    .content("{\"currency\":\"" + currency + "\"}"))
-            .andExpect(status().isCreated())
-            .andReturn();
-    return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asText();
-  }
-
-  private void deposit(String token, String amount, String idempotencyId) throws Exception {
-    mockMvc
-        .perform(
-            put("/api/v1/deposits")
-                .header("Authorization", "Bearer " + token)
-                .header(Headers.X_IDEMPOTENCY_ID, idempotencyId)
-                .contentType(APPLICATION_JSON)
-                .content("{\"amount\":\"" + amount + "\"}"))
-        .andExpect(status().isOk());
   }
 
   private void awaitBalance(String token, double expectedBalance) throws Exception {
@@ -111,9 +88,9 @@ class TransferControllerE2ETest extends EndToEndTest {
       var tokenB = login(mockMvc, emailB, password);
 
       createWallet(tokenA, "BRL");
-      var destId = createWalletAndGetId(tokenB, "BRL");
+      var destId = createWalletAndGetId(mockMvc, tokenB, "BRL");
 
-      deposit(tokenA, "150.00", "e2e-dep-origin");
+      deposit(mockMvc, tokenA, "150.00", "e2e-dep-origin");
 
       var transferBody = "{\"destinationWalletId\":\"%s\",\"amount\":\"60.00\"}".formatted(destId);
       mockMvc
@@ -152,9 +129,9 @@ class TransferControllerE2ETest extends EndToEndTest {
       var tokenB = login(mockMvc, emailB, password);
 
       createWallet(tokenA, "BRL");
-      var destId = createWalletAndGetId(tokenB, "USD");
+      var destId = createWalletAndGetId(mockMvc, tokenB, "USD");
 
-      deposit(tokenA, "100.00", "e2e-dep-brl");
+      deposit(mockMvc, tokenA, "100.00", "e2e-dep-brl");
 
       var transferBody = "{\"destinationWalletId\":\"%s\",\"amount\":\"50.00\"}".formatted(destId);
       mockMvc
@@ -165,7 +142,7 @@ class TransferControllerE2ETest extends EndToEndTest {
                   .contentType(APPLICATION_JSON)
                   .content(transferBody))
           .andExpect(status().isUnprocessableEntity())
-          .andExpect(jsonPath("$.error").value("CurrencyMismatchException"));
+          .andExpect(jsonPath("$.code").value(WalletErrorCode.CURRENCY_MISMATCH.getCode()));
     }
 
     @Test
@@ -178,7 +155,7 @@ class TransferControllerE2ETest extends EndToEndTest {
       var token = login(mockMvc, email, password);
 
       createWallet(token, "BRL");
-      deposit(token, "100.00", "e2e-dep-null-dest");
+      deposit(mockMvc, token, "100.00", "e2e-dep-null-dest");
 
       var transferBody = "{\"destinationWalletId\":null,\"amount\":\"50.00\"}";
       mockMvc
@@ -206,9 +183,9 @@ class TransferControllerE2ETest extends EndToEndTest {
       var tokenB = login(mockMvc, emailB, password);
 
       createWallet(tokenA, "BRL");
-      var destId = createWalletAndGetId(tokenB, "BRL");
+      var destId = createWalletAndGetId(mockMvc, tokenB, "BRL");
 
-      deposit(tokenA, "100.00", "e2e-dep-null-amount");
+      deposit(mockMvc, tokenA, "100.00", "e2e-dep-null-amount");
 
       var transferBody = "{\"destinationWalletId\":\"%s\",\"amount\":null}".formatted(destId);
       mockMvc
@@ -236,9 +213,9 @@ class TransferControllerE2ETest extends EndToEndTest {
       var tokenB = login(mockMvc, emailB, password);
 
       createWallet(tokenA, "BRL");
-      var destId = createWalletAndGetId(tokenB, "BRL");
+      var destId = createWalletAndGetId(mockMvc, tokenB, "BRL");
 
-      deposit(tokenA, "100.00", "e2e-dep-neg-amount");
+      deposit(mockMvc, tokenA, "100.00", "e2e-dep-neg-amount");
 
       var transferBody = "{\"destinationWalletId\":\"%s\",\"amount\":\"-10.00\"}".formatted(destId);
       mockMvc
@@ -267,9 +244,9 @@ class TransferControllerE2ETest extends EndToEndTest {
       var tokenB = login(mockMvc, emailB, password);
 
       createWallet(tokenA, "BRL");
-      var destId = createWalletAndGetId(tokenB, "BRL");
+      var destId = createWalletAndGetId(mockMvc, tokenB, "BRL");
 
-      deposit(tokenA, "100.00", "e2e-dep-race");
+      deposit(mockMvc, tokenA, "100.00", "e2e-dep-race");
 
       var transferBody = "{\"destinationWalletId\":\"%s\",\"amount\":\"100.00\"}".formatted(destId);
 
@@ -318,7 +295,7 @@ class TransferControllerE2ETest extends EndToEndTest {
         var status2 = future2.get(10, TimeUnit.SECONDS);
 
         var successCount = (status1 == 200 ? 1 : 0) + (status2 == 200 ? 1 : 0);
-        var failureCount = (status1 == 422 ? 1 : 0) + (status2 == 422 ? 1 : 0);
+        var failureCount = (status1 == 400 ? 1 : 0) + (status2 == 400 ? 1 : 0);
 
         assert successCount == 1 : "Expected 1 success, got " + successCount;
         assert failureCount == 1 : "Expected 1 failure, got " + failureCount;
@@ -348,9 +325,9 @@ class TransferControllerE2ETest extends EndToEndTest {
       var tokenB = login(mockMvc, emailB, password);
 
       createWallet(tokenA, "BRL");
-      var destId = createWalletAndGetId(tokenB, "BRL");
+      var destId = createWalletAndGetId(mockMvc, tokenB, "BRL");
 
-      deposit(tokenA, "80.00", "e2e-dep-idem");
+      deposit(mockMvc, tokenA, "80.00", "e2e-dep-idem");
 
       var transferBody = "{\"destinationWalletId\":\"%s\",\"amount\":\"30.00\"}".formatted(destId);
 

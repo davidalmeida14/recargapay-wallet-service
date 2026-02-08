@@ -9,9 +9,11 @@ import br.com.recargapay.wallet.domain.transaction.model.Entry;
 import br.com.recargapay.wallet.domain.transaction.model.Transaction;
 import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
 import br.com.recargapay.wallet.domain.transaction.repository.TransactionRepository;
-import br.com.recargapay.wallet.domain.wallet.exception.WalletNotFoundException;
+import br.com.recargapay.wallet.domain.wallet.exception.WalletErrorCode;
 import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
+import br.com.recargapay.wallet.infrastructure.common.Either;
+import br.com.recargapay.wallet.infrastructure.common.Error;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -37,42 +39,43 @@ public class DepositService {
     this.transactionTemplate = transactionTemplate;
   }
 
-  public Transaction deposit(
+  public Either<Error, Transaction> deposit(
       @NonNull UUID walletId, @NonNull BigDecimal amount, @NonNull String idempotencyId) {
 
-    validateAmount(amount);
+    if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+      return Either.left(
+          Error.of(
+              WalletErrorCode.INVALID_AMOUNT.getCode(),
+              WalletErrorCode.INVALID_AMOUNT.getMessage()));
+    }
 
     var existing =
         transactionRepository.findByWalletIdAndIdempotencyIdAndType(
             walletId, idempotencyId, DEPOSIT);
     if (existing.isPresent()) {
-      return existing.get();
+      return Either.right(existing.get());
     }
 
-    Transaction deposit =
-        transactionTemplate.execute(
-            status -> {
-              Wallet wallet =
-                  walletRepository
-                      .loadByIdForUpdate(walletId)
-                      .orElseThrow(() -> new WalletNotFoundException(walletId));
-              Transaction transaction = createPending(walletId, amount, idempotencyId);
-              transactionRepository.create(transaction);
-              entryRepository.create(createEntry(transaction));
-              wallet.deposit(amount);
-              walletRepository.save(wallet);
-              transaction.processed();
-              transactionRepository.update(transaction);
-              return transaction;
-            });
+    return transactionTemplate.execute(
+        status -> {
+          var walletOpt = walletRepository.loadByIdForUpdate(walletId);
+          if (walletOpt.isEmpty()) {
+            return Either.left(
+                Error.of(
+                    WalletErrorCode.WALLET_NOT_FOUND.getCode(),
+                    WalletErrorCode.WALLET_NOT_FOUND.getMessage()));
+          }
 
-    return deposit;
-  }
-
-  private void validateAmount(@NonNull BigDecimal amount) {
-    if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-      throw new IllegalArgumentException("Deposit amount must be greater than zero.");
-    }
+          Wallet wallet = walletOpt.get();
+          Transaction transaction = createPending(walletId, amount, idempotencyId);
+          transactionRepository.create(transaction);
+          entryRepository.create(createEntry(transaction));
+          wallet.deposit(amount);
+          walletRepository.save(wallet);
+          transaction.processed();
+          transactionRepository.update(transaction);
+          return Either.right(transaction);
+        });
   }
 
   private @NonNull Entry createEntry(Transaction transaction) {

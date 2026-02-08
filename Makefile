@@ -55,10 +55,24 @@ test/run/e2e/wallet:
 #
 dependencies/services: dependencies/services/run db/migrate
 dependencies/services/run:
-	docker compose up -d
-	docker compose exec -T postgres pg_isready -U postgres -d wallet || docker compose up -d --wait
+	docker compose up -d postgres localstack redis
+	docker compose exec -T postgres pg_isready -U postgres -d wallet || docker compose up -d --wait postgres
 dependencies/clean/services:
 	docker compose stop && docker compose rm -vf
+
+# Build and start the application container
+#
+#   make up
+#
+up: dependencies/services/run db/migrate
+	docker compose up -d --build app
+
+# Stop and remove all containers
+#
+#   make down
+#
+down:
+	docker compose down -v
 
 # Setup the local development environment with python3 venv and project dependencies
 #

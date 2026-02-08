@@ -2,7 +2,7 @@
 --changeset david:V20260202225554__add_transaction_table
 
 
-CREATE TABLE transactions
+CREATE TABLE IF NOT EXISTS transactions
 (
     id                    UUID PRIMARY KEY,
     wallet_id             UUID NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE transactions
         UNIQUE (wallet_id, idempotency_id, type)
 );
 
-CREATE INDEX idx_transaction_wallet_id ON transactions (wallet_id);
-CREATE INDEX idx_transaction_wallet_id_created_at ON transactions (wallet_id, created_at);
-CREATE INDEX idx_transaction_wallet_type ON transactions (wallet_id, type) INCLUDE (created_at);
+CREATE INDEX IF NOT EXISTS idx_transaction_wallet_id ON transactions (wallet_id);
+CREATE INDEX IF NOT EXISTS idx_transaction_wallet_id_created_at ON transactions (wallet_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_transaction_wallet_type ON transactions (wallet_id, type) INCLUDE (created_at);
 --rollback

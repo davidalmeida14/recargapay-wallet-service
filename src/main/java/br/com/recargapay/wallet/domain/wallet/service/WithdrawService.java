@@ -9,9 +9,11 @@ import br.com.recargapay.wallet.domain.transaction.model.Entry;
 import br.com.recargapay.wallet.domain.transaction.model.Transaction;
 import br.com.recargapay.wallet.domain.transaction.repository.EntryRepository;
 import br.com.recargapay.wallet.domain.transaction.repository.TransactionRepository;
-import br.com.recargapay.wallet.domain.wallet.exception.WalletNotFoundException;
+import br.com.recargapay.wallet.domain.wallet.exception.WalletErrorCode;
 import br.com.recargapay.wallet.domain.wallet.model.Wallet;
 import br.com.recargapay.wallet.domain.wallet.repository.WalletRepository;
+import br.com.recargapay.wallet.infrastructure.common.Either;
+import br.com.recargapay.wallet.infrastructure.common.Error;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -37,42 +39,54 @@ public class WithdrawService {
     this.transactionTemplate = transactionTemplate;
   }
 
-  public Transaction withdraw(
+  public Either<Error, Transaction> withdraw(
       @NonNull UUID walletId, @NonNull BigDecimal amount, @NonNull String idempotencyId) {
     if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-      throw new IllegalArgumentException("Withdraw amount must be greater than zero.");
+      return Either.left(
+          Error.of(
+              WalletErrorCode.INVALID_AMOUNT.getCode(),
+              WalletErrorCode.INVALID_AMOUNT.getMessage()));
     }
 
     var existing =
         transactionRepository.findByWalletIdAndIdempotencyIdAndType(
             walletId, idempotencyId, WITHDRAWAL);
     if (existing.isPresent()) {
-      return existing.get();
+      return Either.right(existing.get());
     }
 
-    Transaction withdrawTransaction =
-        transactionTemplate.execute(
-            status -> {
-              Wallet wallet =
-                  walletRepository
-                      .loadByIdForUpdate(walletId)
-                      .orElseThrow(() -> new WalletNotFoundException(walletId));
+    return transactionTemplate.execute(
+        status -> {
+          var walletOpt = walletRepository.loadByIdForUpdate(walletId);
+          if (walletOpt.isEmpty()) {
+            return Either.left(
+                Error.of(
+                    WalletErrorCode.WALLET_NOT_FOUND.getCode(),
+                    WalletErrorCode.WALLET_NOT_FOUND.getMessage()));
+          }
 
-              wallet.withdraw(amount);
+          Wallet wallet = walletOpt.get();
 
-              Transaction transaction = createPending(walletId, amount, idempotencyId);
-              transactionRepository.create(transaction);
-              entryRepository.create(createEntry(transaction));
+          if (wallet.getBalance().compareTo(amount) < 0) {
+            return Either.left(
+                Error.of(
+                    WalletErrorCode.INSUFFICIENT_BALANCE.getCode(),
+                    WalletErrorCode.INSUFFICIENT_BALANCE.getMessage()));
+          }
 
-              walletRepository.save(wallet);
+          wallet.withdraw(amount);
 
-              transaction.processed();
-              transactionRepository.update(transaction);
+          Transaction transaction = createPending(walletId, amount, idempotencyId);
+          transactionRepository.create(transaction);
+          entryRepository.create(createEntry(transaction));
 
-              return transaction;
-            });
+          walletRepository.save(wallet);
 
-    return withdrawTransaction;
+          transaction.processed();
+          transactionRepository.update(transaction);
+
+          return Either.right(transaction);
+        });
   }
 
   private @NonNull Entry createEntry(Transaction transaction) {
