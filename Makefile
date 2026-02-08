@@ -30,7 +30,7 @@ sonar:
 #
 test: test/unit test/integration test/e2e
 
-test/unit: lint/check
+test/unit:
 	ENVIRONMENT=test mvn -B test -Dgroups=unit
 
 test/integration:

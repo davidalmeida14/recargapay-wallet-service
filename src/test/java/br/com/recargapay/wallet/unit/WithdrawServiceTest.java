@@ -34,7 +34,8 @@ class WithdrawServiceTest extends UnitTest {
 
   @BeforeEach
   void setup() {
-    // Use doAnswer for execute as it receives a TransactionCallback and returns a value
+    // Use doAnswer for execute as it receives a TransactionCallback and returns a
+    // value
     lenient()
         .doAnswer(
             invocation -> {

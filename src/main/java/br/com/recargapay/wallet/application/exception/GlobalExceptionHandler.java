@@ -32,11 +32,16 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
         .body(
             Map.of(
-                "code", WalletErrorCode.INSUFFICIENT_BALANCE.getCode(),
-                "message", WalletErrorCode.INSUFFICIENT_BALANCE.getMessage(),
-                "walletId", ex.getWalletId().toString(),
-                "requested", ex.getRequested().toString(),
-                "available", ex.getAvailable().toString()));
+                "code",
+                WalletErrorCode.INSUFFICIENT_BALANCE.getCode(),
+                "message",
+                WalletErrorCode.INSUFFICIENT_BALANCE.getMessage(),
+                "walletId",
+                ex.getWalletId().toString(),
+                "requested",
+                ex.getRequested().toString(),
+                "available",
+                ex.getAvailable().toString()));
   }
 
   @ExceptionHandler(CurrencyMismatchException.class)
@@ -44,10 +49,14 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
         .body(
             Map.of(
-                "code", WalletErrorCode.CURRENCY_MISMATCH.getCode(),
-                "message", WalletErrorCode.CURRENCY_MISMATCH.getMessage(),
-                "originWalletId", ex.getOriginWalletId().toString(),
-                "destinationWalletId", ex.getDestinationWalletId().toString()));
+                "code",
+                WalletErrorCode.CURRENCY_MISMATCH.getCode(),
+                "message",
+                WalletErrorCode.CURRENCY_MISMATCH.getMessage(),
+                "originWalletId",
+                ex.getOriginWalletId().toString(),
+                "destinationWalletId",
+                ex.getDestinationWalletId().toString()));
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -57,11 +66,7 @@ public class GlobalExceptionHandler {
             .map(e -> e.getField() + ": " + e.getDefaultMessage())
             .toList();
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-        .body(
-            Map.of(
-                "error", "ValidationError",
-                "message", "Invalid request",
-                "details", errors));
+        .body(Map.of("error", "ValidationError", "message", "Invalid request", "details", errors));
   }
 
   @ExceptionHandler(MissingRequestHeaderException.class)
