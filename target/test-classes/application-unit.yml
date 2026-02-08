@@ -1,5 +1,0 @@
-# Profile: unit
-# Used by unit tests only. No datasource required (mocks).
-spring:
-  main:
-    allow-bean-definition-overriding: true
