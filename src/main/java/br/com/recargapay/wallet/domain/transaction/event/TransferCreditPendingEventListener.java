@@ -17,7 +17,7 @@ public class TransferCreditPendingEventListener {
   private final SqsClient sqsClient;
   private final ObjectMapper objectMapper;
 
-  @Value("${aws.sqs.queues.transfers.transfer-credit-pending}")
+  @Value("${aws.sqs.queues.transfer-credit-pending}")
   private String queueName;
 
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMPLETION)

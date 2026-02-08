@@ -4,11 +4,23 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.CreateQueueRequest;
+import software.amazon.awssdk.services.sqs.model.ListQueuesResponse;
 
 /**
  * Base class for end-to-end (controller) tests. Full Spring context, random port, MockMvc.
@@ -21,6 +33,50 @@ import org.springframework.transaction.annotation.Transactional;
 @AutoConfigureMockMvc
 @Transactional
 public abstract class EndToEndTest {
+
+  @Autowired
+  private JdbcTemplate jdbcTemplate;
+
+  @BeforeAll
+  static void setupQueues() throws Exception {
+    String endpoint = "http://localhost:4566";
+    String region = "us-east-1";
+    String queueName = "transfer-credit-pending";
+
+    try (SqsClient sqsClient = SqsClient.builder()
+        .endpointOverride(java.net.URI.create(endpoint))
+        .region(Region.of(region))
+        .credentialsProvider(StaticCredentialsProvider.create(
+            AwsBasicCredentials.create("test", "test")))
+        .build()) {
+
+      ListQueuesResponse listQueuesResponse = sqsClient.listQueues();
+      boolean queueExists = listQueuesResponse.queueUrls().stream()
+          .anyMatch(url -> url.contains(queueName));
+
+      if (!queueExists) {
+        sqsClient.createQueue(CreateQueueRequest.builder()
+            .queueName(queueName)
+            .build());
+      } else {
+        String queueUrl = listQueuesResponse.queueUrls().stream()
+            .filter(url -> url.contains(queueName))
+            .findFirst()
+            .get();
+        sqsClient.purgeQueue(b -> b.queueUrl(queueUrl));
+      }
+    } catch (Exception e) {
+      System.err.println("Failed to setup SQS queue: " + e.getMessage());
+    }
+  }
+
+  @AfterEach
+  void cleanupDatabase() {
+    jdbcTemplate.execute("TRUNCATE TABLE entries CASCADE");
+    jdbcTemplate.execute("TRUNCATE TABLE transactions CASCADE");
+    jdbcTemplate.execute("TRUNCATE TABLE wallets CASCADE");
+    jdbcTemplate.execute("TRUNCATE TABLE customers CASCADE");
+  }
 
   protected String login(
       org.springframework.test.web.servlet.MockMvc mockMvc, String email, String password)

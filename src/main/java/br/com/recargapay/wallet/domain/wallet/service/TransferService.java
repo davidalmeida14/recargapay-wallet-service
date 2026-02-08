@@ -143,7 +143,10 @@ public class TransferService {
     Transaction transaction =
         transactionRepository
             .loadById(transactionId)
-            .orElseThrow(() -> new TransactionNotFoundException(transactionId));
+            .orElseThrow(() -> {
+              log.error("Transaction {} not found for processing credit", transactionId);
+              return new TransactionNotFoundException(transactionId);
+            });
 
     if (transaction.isCompleted()) {
       log.warn("Transaction {} already completed.", transactionId);

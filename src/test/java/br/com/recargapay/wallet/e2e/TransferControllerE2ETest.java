@@ -20,12 +20,13 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 @ActiveProfiles("e2e")
-@Transactional
+@Transactional(propagation = Propagation.NOT_SUPPORTED)
 class TransferControllerE2ETest extends EndToEndTest {
 
   @Autowired private MockMvc mockMvc;
@@ -88,6 +89,8 @@ class TransferControllerE2ETest extends EndToEndTest {
                   .contentType(APPLICATION_JSON)
                   .content(transferBody))
           .andExpect(status().isOk());
+
+      Thread.sleep(1000); // Give time for async processing
 
       mockMvc
           .perform(get("/api/v1/wallets/balance").header("Authorization", "Bearer " + tokenA))

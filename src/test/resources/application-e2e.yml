@@ -1,0 +1,17 @@
+spring:
+  cloud:
+    aws:
+      region:
+        static: us-east-1
+      credentials:
+        access-key: test
+        secret-key: test
+      sqs:
+        enabled: true
+
+aws:
+  sqs:
+    endpoint:
+      configuration: http://localhost:4566
+    queues:
+      transfer-credit-pending: transfer-credit-pending
