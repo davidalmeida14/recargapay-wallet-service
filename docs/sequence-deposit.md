@@ -1,56 +1,29 @@
 # Diagrama de Sequência: Depósito
 
-Este diagrama descreve o fluxo de depósito em uma carteira digital.
+Este diagrama descreve o fluxo de depósito em uma carteira digital, garantindo a consistência do saldo e a idempotência da transação.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Usuário
-    participant API as DepositController
-    participant Sec as SecurityService
-    participant WS as WalletService
-    participant DS as DepositService
-    participant WR as WalletRepository
-    participant TR as TransactionRepository
-    participant ER as EntryRepository
-    participant DB as Banco de Dados (Transacional)
+    actor Cliente
+    participant API as API de Carteira
+    participant DB as Banco de Dados
 
-    Usuário->>API: PUT /api/v1/deposits (DepositRequest + Idempotency-Id)
-    API->>Sec: getAuthenticatedCustomerId()
-    Sec-->>API: customerId
-    API->>WS: retrieveDefaultWallet(customerId)
-    WS-->>API: wallet
+    Cliente->>API: Solicita Depósito (Valor, Idempotência)
     
-    API->>DS: deposit(walletId, amount, idempotencyId)
-    
-    DS->>TR: findByWalletIdAndIdempotencyIdAndType(...)
-    alt Já processado (Idempotência)
-        TR-->>DS: Optional[Transaction]
-        DS-->>API: transaction
+    API->>DB: Verifica Idempotência (Transação já existe?)
+    alt Já processado
+        DB-->>API: Retorna transação existente
+        API-->>Cliente: 200 OK (Dados da transação)
     else Novo Depósito
-        TR-->>DS: Optional.empty()
-        
-        Note over DS, DB: Início do TransactionTemplate
-        DS->>WR: loadByIdForUpdate(walletId)
-        WR-->>DS: wallet (LOCKED)
-        
-        DS->>DS: createPendingTransaction()
-        DS->>TR: create(transaction)
-        
-        DS->>DS: createEntry(CREDIT)
-        DS->>ER: create(entry)
-        
-        DS->>WR: deposit(amount)
-        DS->>WR: add(wallet)
-        
-        DS->>TR: update(transaction status: PROCESSED)
-        Note over DS, DB: Fim do TransactionTemplate
-        
-        DS-->>API: transaction
+        rect rgb(240, 240, 240)
+            Note over API, DB: Fluxo Transacional
+            API->>DB: Valida Conta do Cliente
+            API->>DB: Registra Transação "PENDENTE"
+            API->>DB: Incrementa Saldo da Carteira
+            API->>DB: Gera Entrada de Crédito (Histórico)
+            API->>DB: Atualiza Transação para "CONCLUÍDA"
+        end
+        API-->>Cliente: 200 OK (Depósito Realizado)
     end
-    
-    API->>WS: retrieveBalance(walletId)
-    WS-->>API: availableBalance
-    
-    API-->>Usuário: 200 OK (TransactionResponse)
 ```

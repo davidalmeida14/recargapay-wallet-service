@@ -1,61 +1,39 @@
 # Diagrama de Sequência: Transferência
 
-Este diagrama descreve o fluxo de transferência entre duas carteiras digitais.
+Este diagrama descreve o fluxo de transferência entre duas carteiras digitais, destacando o processamento assíncrono do crédito.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Usuário
-    participant API as TransferController
-    participant Sec as SecurityService
-    participant WS as WalletService
-    participant TS as TransferService
-    participant WR as WalletRepository
-    participant TR as TransactionRepository
-    participant ER as EntryRepository
-    participant DB as Banco de Dados (Transacional)
+    actor Cliente as Cliente (Origem)
+    participant API as API de Carteira
+    participant SQS as Fila de Crédito (SQS)
+    participant Worker as Worker de Crédito
+    participant DB as Banco de Dados
 
-    Usuário->>API: PUT /api/v1/transfers (TransferRequest + Idempotency-Id)
-    API->>Sec: getAuthenticatedCustomerId()
-    Sec-->>API: customerId
-    API->>WS: retrieveDefaultWallet(customerId)
-    WS-->>API: originWallet
+    Cliente->>API: Solicita Transferência (Valor, Destino, Idempotência)
     
-    API->>TS: transfer(originId, destId, amount, idempotencyId)
-    
-    TS->>TR: findByWalletIdAndIdempotencyIdAndType(...)
-    alt Já processado (Idempotência)
-        TR-->>TS: Optional[Transaction]
-        TS-->>API: void
-    else Nova Transferência
-        TR-->>TS: Optional.empty()
-        
-        Note over TS, DB: Início do TransactionTemplate
-        TS->>WR: loadByIdForUpdate(originId)
-        WR-->>TS: originWallet (LOCKED)
-        TS->>WR: loadByIdForUpdate(destId)
-        WR-->>TS: destWallet (LOCKED)
-        
-        TS->>TS: validateCurrencyMatching()
-        
-        TS->>WR: originWallet.withdraw(amount)
-        TS->>WR: destWallet.deposit(amount)
-        
-        TS->>TS: createPendingTransaction()
-        TS->>TR: create(transaction)
-        
-        TS->>TS: createDebitEntry(origin)
-        TS->>TS: createCreditEntry(destination)
-        TS->>ER: create(List<Entry>)
-        
-        TS->>WR: add(originWallet)
-        TS->>WR: add(destWallet)
-        
-        TS->>TR: update(transaction status: PROCESSED)
-        Note over TS, DB: Fim do TransactionTemplate
-        
-        TS-->>API: void
+    rect rgb(240, 240, 240)
+        Note over API, DB: Fase Síncrona (Transacional)
+        API->>DB: Valida Saldo da Conta Origem
+        API->>DB: Valida Existência da Conta Destino
+        API->>DB: Registra Transação "PENDENTE"
+        API->>DB: Realiza Débito na Conta Origem
+        API->>DB: Gera Entrada de Débito (Histórico)
+        API->>API: Publica Evento "TransferCreditPending"
     end
-    
-    API-->>Usuário: 200 OK
+
+    API-->>Cliente: 200 OK (Transferência Iniciada)
+
+    Note over SQS, Worker: Processamento Assíncrono
+
+    API->>SQS: Envia mensagem de crédito
+    SQS->>Worker: Consome mensagem de crédito
+
+    rect rgb(240, 240, 240)
+        Note over Worker, DB: Fase Assíncrona (Transacional)
+        Worker->>DB: Realiza Crédito na Conta Destino
+        Worker->>DB: Gera Entrada de Crédito (Histórico)
+        Worker->>DB: Atualiza Transação para "CONCLUÍDA"
+    end
 ```

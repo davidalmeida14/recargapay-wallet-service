@@ -1,58 +1,33 @@
-# Diagrama de Sequência: Retirada
+# Diagrama de Sequência: Saque (Retirada)
 
-Este diagrama descreve o fluxo de retirada (saque) de uma carteira digital.
+Este diagrama descreve o fluxo de saque de uma carteira digital, com validação de saldo e controle de idempotência.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Usuário
-    participant API as WithdrawController
-    participant Sec as SecurityService
-    participant WS as WalletService
-    participant DS as WithdrawService
-    participant WR as WalletRepository
-    participant TR as TransactionRepository
-    participant ER as EntryRepository
-    participant DB as Banco de Dados (Transacional)
+    actor Cliente
+    participant API as API de Carteira
+    participant DB as Banco de Dados
 
-    Usuário->>API: PUT /api/v1/withdrawals (WithdrawRequest + Idempotency-Id)
-    API->>Sec: getAuthenticatedCustomerId()
-    Sec-->>API: customerId
-    API->>WS: retrieveDefaultWallet(customerId)
-    WS-->>API: wallet
+    Cliente->>API: Solicita Saque (Valor, Idempotência)
     
-    API->>DS: withdraw(walletId, amount, idempotencyId)
-    
-    DS->>TR: findByWalletIdAndIdempotencyIdAndType(...)
-    alt Já processado (Idempotência)
-        TR-->>DS: Optional[Transaction]
-        DS-->>API: transaction
-    else Nova Retirada
-        TR-->>DS: Optional.empty()
-        
-        Note over DS, DB: Início do TransactionTemplate
-        DS->>WR: loadByIdForUpdate(walletId)
-        WR-->>DS: wallet (LOCKED)
-        
-        DS->>WR: withdraw(amount)
-        Note right of WR: Pode lançar InsufficientBalanceException
-        
-        DS->>DS: createPendingTransaction()
-        DS->>TR: create(transaction)
-        
-        DS->>DS: createEntry(DEBIT)
-        DS->>ER: create(entry)
-        
-        DS->>WR: add(wallet)
-        
-        DS->>TR: update(transaction status: PROCESSED)
-        Note over DS, DB: Fim do TransactionTemplate
-        
-        DS-->>API: transaction
+    API->>DB: Verifica Idempotência (Transação já existe?)
+    alt Já processado
+        DB-->>API: Retorna transação existente
+        API-->>Cliente: 200 OK (Dados da transação)
+    else Novo Saque
+        rect rgb(240, 240, 240)
+            Note over API, DB: Fluxo Transacional
+            API->>DB: Valida Conta e Saldo Disponível
+            alt Saldo Insuficiente
+                API-->>Cliente: 400 Bad Request (Erro: Saldo Insuficiente)
+            else Saldo OK
+                API->>DB: Registra Transação "PENDENTE"
+                API->>DB: Decrementa Saldo da Carteira
+                API->>DB: Gera Entrada de Débito (Histórico)
+                API->>DB: Atualiza Transação para "CONCLUÍDA"
+                API-->>Cliente: 200 OK (Saque Realizado)
+            end
+        end
     end
-    
-    API->>WS: retrieveBalance(walletId)
-    WS-->>API: availableBalance
-    
-    API-->>Usuário: 200 OK (TransactionResponse)
 ```

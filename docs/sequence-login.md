@@ -1,35 +1,27 @@
-# Diagrama de Sequência: Login
+# Diagrama de Sequência: Autenticação (Login)
 
-Este diagrama descreve o fluxo de autenticação de um usuário para obtenção de um token JWT.
+Este diagrama descreve o fluxo de autenticação de um cliente para obtenção de acesso seguro via token JWT.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Usuário
-    participant API as AuthController
-    participant Repo as CustomerRepository
-    participant Encoder as PasswordEncoder
-    participant JWT as JwtEncoder
+    actor Cliente
+    participant API as API de Autenticação
+    participant DB as Banco de Dados
 
-    Usuário->>API: POST /api/v1/authentication (LoginRequest)
-    API->>Repo: findByEmail(email)
+    Cliente->>API: Solicita Login (E-mail, Senha)
     
-    alt Usuário não encontrado
-        Repo-->>API: Optional.empty()
-        API-->>Usuário: 500 Internal Server Error (RuntimeException)
-    else Usuário encontrado
-        Repo-->>API: Optional[Customer]
-        API->>Encoder: matches(password, hashedPassword)
-        
-        alt Senha incorreta
-            Encoder-->>API: false
-            API-->>Usuário: 500 Internal Server Error (RuntimeException)
-        else Senha correta
-            Encoder-->>API: true
-            API->>API: Build JwtClaimsSet
-            API->>JWT: encode(parameters)
-            JWT-->>API: Jwt
-            API-->>Usuário: 200 OK (LoginResponse com Token)
+    API->>DB: Busca Cliente por E-mail
+    alt Cliente não encontrado
+        DB-->>API: Não encontrado
+        API-->>Cliente: 401 Unauthorized (Credenciais Inválidas)
+    else Cliente encontrado
+        API->>API: Valida Hash da Senha
+        alt Senha Inválida
+            API-->>Cliente: 401 Unauthorized (Credenciais Inválidas)
+        else Senha Válida
+            API->>API: Gera Token JWT (Claims, Expiry)
+            API-->>Cliente: 200 OK (Token de Acesso)
         end
     end
 ```
