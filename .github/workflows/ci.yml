@@ -35,12 +35,11 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Run Tests
-        env:
-          DATABASE_URL: jdbc:postgresql://localhost:5432/wallet
-          DATABASE_USERNAME: postgres
-          DATABASE_PASSWORD: postgres
-        run: ./mvnw clean test
+      - name: Unit Tests
+        run: make test/unit
 
-      - name: Check Formatting (Spotless)
-        run: ./mvnw spotless:check
+      - name: Integration Tests
+        run: make test/integration
+
+      - name: E2E Tests
+        run: make test/e2e

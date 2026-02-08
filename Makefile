@@ -28,23 +28,17 @@ sonar:
 #
 #   make test
 #
-test: dependencies/services test/unit test/run/integration/wallet test/run/e2e/wallet dependencies/clean/services
+test: test/unit test/integration test/e2e
 
-test/unit: test/lint/check test/run/unit
-test/lint/check: lint/check
-test/run/unit:
+test/unit: lint/check
 	ENVIRONMENT=test mvn -B test -Dgroups=unit
 
-test/integration: dependencies/services test/run/integration/wallet dependencies/clean/services
-
-test/run/integration/wallet:
+test/integration:
 	$(MAKE) dependencies/services
 	ENVIRONMENT=test mvn -B test -Dgroups=integration
 	$(MAKE) dependencies/clean/services
 
-test/e2e: dependencies/services test/run/e2e/wallet dependencies/clean/services
-
-test/run/e2e/wallet:
+test/e2e:
 	$(MAKE) dependencies/services
 	ENVIRONMENT=test mvn -B test -Dgroups=e2e
 	$(MAKE) dependencies/clean/services
